@@ -4,6 +4,7 @@
 #include <pthread.h>
 
 #include "data_plane.h"
+#include "media_file.h"
 
 using namespace std;
 
@@ -18,11 +19,19 @@ static data_plane_port_range_t data_plane_port_range;
 static map <uint64_t, data_plane_media_sdp_t> data_plane_f_map;
 static map <uint64_t, data_plane_media_sdp_t> data_plane_c_map;
 
+static uint8_t *media_file_buf;
+static int      media_file_len; 
 
-int data_plane_init(uint32_t rtp_port_start, uint32_t rtp_port_end) {
-
+int data_plane_init(uint32_t rtp_port_start, uint32_t rtp_port_end, const char *filename) {
 	data_plane_port_range.port_start = rtp_port_start;
 	data_plane_port_range.port_end = rtp_port_end;
+	SF_INFO sf_info;
+	SNDFILE *fd = media_file_open(filename, sf_info);
+	if (fd != NULL) {
+		media_file_buf = NULL;
+		media_file_buf = (uint8_t *)malloc(sf_info.frames);
+		int media_file_len = media_file_read(fd, media_file_buf, sf_info.frames);
+	}
 }
 
 const data_plane_media_sdp_t data_plane_add_sender(sdp_process_type_t sdp_type, struct sockaddr d_addr, uint16_t d_port) {
