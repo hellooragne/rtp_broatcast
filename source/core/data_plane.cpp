@@ -5,6 +5,7 @@
 
 #include "data_plane.h"
 #include "media_file.h"
+#include "rtp_process.h"
 
 using namespace std;
 
@@ -34,12 +35,11 @@ int data_plane_init(uint32_t rtp_port_start, uint32_t rtp_port_end, const char *
 	}
 }
 
-const data_plane_media_sdp_t data_plane_add_sender(sdp_process_type_t sdp_type, struct sockaddr d_addr, uint16_t d_port) {
+const data_plane_media_sdp_t data_plane_add_sender(sdp_process_type_t sdp_type, in_addr_t d_addr, uint16_t d_port) {
 
 	struct  timeval time_now;
-	uint64_t key;
 	gettimeofday(&time_now, NULL);
-	key = time_now.tv_sec * 1000000 + time_now.tv_usec;
+	uint64_t key = time_now.tv_sec * 1000000 + time_now.tv_usec;
 
 	if (sdp_type == SDP_SENDER) {
 
@@ -74,15 +74,55 @@ int data_plane_del_sender(sdp_process_type_t sdp_type, const data_plane_media_sd
 	}
 }
 
+static void send_hint_sound(data_plane_media_sdp_t sdp) {
+	struct  timeval time_start;
+	gettimeofday(&time_start, NULL);
+	uint8_t *media_index = media_file_buf;
+	rtp_process_t rtp_process;
 
-static void *data_plane_run_thread(void *arg) {
+	rtp_process_context_init(&rtp_process, sdp.d_addr, sdp.d_port);
+	while (1) {
+		struct  timeval time_now;
+		gettimeofday(&time_now, NULL);
+		if ((time_now.tv_sec * 1000000 + time_now.tv_usec) >= (20000 + (time_start.tv_sec * 1000000 + time_start.tv_usec))) {
+			if (media_file_len < 160)  		
+			for (int i = 0; i < media_file_len; i += 160) {
+				/*send file*/
+			}
+		}
+	}
+}
+
+static void *data_plane_send_hint_run_thread(void *arg) {
+	struct  timeval time_start;
+	gettimeofday(&time_start, NULL);
+
+	while (1) {
+		struct  timeval time_now;
+		gettimeofday(&time_now, NULL);
+
+		if ((time_now.tv_sec * 1000000 + time_now.tv_usec) >= (2000000 + (time_start.tv_sec * 1000000 + time_start.tv_usec))) {
+			if (data_plane_f_map.size() == 0) {
+
+			}
+
+			if (data_plane_c_map.size() == 0) {
+
+			}
+		}
+	}
+}
+
+static void *data_plane_switch_data_run_thread(void *arg) {
 
 }
 
 int data_plane_run() {
 
+	rtp_prcess_init();
+
 	pthread_t tid;
-	int err = pthread_create(&tid, NULL, &data_plane_run_thread, NULL);
+	int err = pthread_create(&tid, NULL, &data_plane_send_hint_run_thread, NULL);
 	if (err != 0) {
 		printf("\ncan't create thread :[%s]", strerror(err));
 	}

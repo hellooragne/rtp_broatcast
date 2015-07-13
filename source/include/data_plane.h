@@ -12,14 +12,19 @@
 
 #include <stdint.h>
 
+#include <netinet/in.h>
+#include <arpa/inet.h>
+
+
+
 /**
  *
  */
 
 typedef struct {
 	uint64_t key;
-	struct sockaddr s_addr;	
-	struct sockaddr d_addr;	
+	in_addr_t s_addr;	
+	in_addr_t d_addr;	
 	uint16_t s_port;		
 	uint16_t d_port;
 } data_plane_media_sdp_t;
