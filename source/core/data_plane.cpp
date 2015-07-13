@@ -78,17 +78,21 @@ static void send_hint_sound(data_plane_media_sdp_t sdp) {
 	struct  timeval time_start;
 	gettimeofday(&time_start, NULL);
 	uint8_t *media_index = media_file_buf;
-	rtp_process_t rtp_process;
+	rtp_process_t rtp_process_tmp;
+	int i = 0;
 
-	rtp_process_context_init(&rtp_process, sdp.d_addr, sdp.d_port);
+	rtp_process_context_init(&rtp_process_tmp, sdp.d_addr, sdp.d_port);
 	while (1) {
 		struct  timeval time_now;
 		gettimeofday(&time_now, NULL);
 		if ((time_now.tv_sec * 1000000 + time_now.tv_usec) >= (20000 + (time_start.tv_sec * 1000000 + time_start.tv_usec))) {
-			if (media_file_len < 160)  		
-			for (int i = 0; i < media_file_len; i += 160) {
-				/*send file*/
+			if (i * 160 <= media_file_len) {
+				rtp_process_send(&rtp_process_tmp, media_index + 160 * i, 160);
+			} else {
+				return;
 			}
+			i++;
+			gettimeofday(&time_start, NULL);
 		}
 	}
 }
@@ -102,12 +106,20 @@ static void *data_plane_send_hint_run_thread(void *arg) {
 		gettimeofday(&time_now, NULL);
 
 		if ((time_now.tv_sec * 1000000 + time_now.tv_usec) >= (2000000 + (time_start.tv_sec * 1000000 + time_start.tv_usec))) {
-			if (data_plane_f_map.size() == 0) {
-
+			if (data_plane_f_map.size() != 0) {
+				if (data_plane_c_map.size() == 0) {
+					map<uint64_t, data_plane_media_sdp_t>::iterator it = data_plane_f_map.begin();
+					while (it != data_plane_f_map.end()) {
+						send_hint_sound(it->second);
+						++it;
+					}
+				}
 			}
 
-			if (data_plane_c_map.size() == 0) {
+			if (data_plane_c_map.size() != 0) {
+				if (data_plane_f_map.size() == 0) {
 
+				}
 			}
 		}
 	}
