@@ -109,7 +109,7 @@ static void *data_plane_send_hint_run_thread(void *arg) {
 		struct  timeval time_now;
 		gettimeofday(&time_now, NULL);
 
-		if ((time_now.tv_sec * 1000000 + time_now.tv_usec) >= (10000000 + (time_start.tv_sec * 1000000 + time_start.tv_usec))) {
+		if ((time_now.tv_sec * 1000000 + time_now.tv_usec) >= (2000000 + (time_start.tv_sec * 1000000 + time_start.tv_usec))) {
 			if (data_plane_f_map.size() != 0) {
 				if (data_plane_c_map.size() == 0) {
 					map<uint64_t, data_plane_media_sdp_t>::iterator it = data_plane_f_map.begin();
