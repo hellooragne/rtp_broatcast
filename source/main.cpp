@@ -2,6 +2,8 @@
 #include "types.h"
 #include "config.h"
 
+#include "data_plane.h"
+
 
 static global_confs_t global_confs;
 
@@ -13,6 +15,7 @@ int main() {
     // load configure data
     //n32Result = load_config(&global_confs, FALSE_B8);
     
-    // 
+	data_plane_test();
+
 	return 0;
 }

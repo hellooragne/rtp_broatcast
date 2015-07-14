@@ -31,7 +31,11 @@ int data_plane_init(uint32_t rtp_port_start, uint32_t rtp_port_end, const char *
 	if (fd != NULL) {
 		media_file_buf = NULL;
 		media_file_buf = (uint8_t *)malloc(sf_info.frames);
-		int media_file_len = media_file_read(fd, media_file_buf, sf_info.frames);
+		int file_ret = media_file_read(fd, media_file_buf, sf_info.frames);
+		media_file_len = sf_info.frames;
+		printf("media file len %lld\n", sf_info.frames);
+	} else {
+		printf("can not open file\n");
 	}
 }
 
@@ -41,7 +45,7 @@ const data_plane_media_sdp_t data_plane_add_sender(sdp_process_type_t sdp_type, 
 	gettimeofday(&time_now, NULL);
 	uint64_t key = time_now.tv_sec * 1000000 + time_now.tv_usec;
 
-	if (sdp_type == SDP_SENDER) {
+	if (sdp_type == SDP_F) {
 
 		data_plane_media_sdp_t media_sdp;
 		media_sdp.d_addr = d_addr;
@@ -51,7 +55,7 @@ const data_plane_media_sdp_t data_plane_add_sender(sdp_process_type_t sdp_type, 
 
 		return media_sdp;
 
-	} else if (sdp_type == SDP_RECEIVER) {
+	} else if (sdp_type == SDP_C) {
 
 		data_plane_media_sdp_t media_sdp;
 		media_sdp.d_addr = d_addr;
@@ -64,11 +68,11 @@ const data_plane_media_sdp_t data_plane_add_sender(sdp_process_type_t sdp_type, 
 
 int data_plane_del_sender(sdp_process_type_t sdp_type, const data_plane_media_sdp_t media_sdp) {
 
-	if (sdp_type == SDP_SENDER) {
+	if (sdp_type == SDP_F) {
 
 		data_plane_f_map.erase(media_sdp.key);
 
-	} else if (sdp_type == SDP_RECEIVER) {
+	} else if (sdp_type == SDP_C) {
 
 		data_plane_c_map.erase(media_sdp.key);
 	}
@@ -105,7 +109,7 @@ static void *data_plane_send_hint_run_thread(void *arg) {
 		struct  timeval time_now;
 		gettimeofday(&time_now, NULL);
 
-		if ((time_now.tv_sec * 1000000 + time_now.tv_usec) >= (2000000 + (time_start.tv_sec * 1000000 + time_start.tv_usec))) {
+		if ((time_now.tv_sec * 1000000 + time_now.tv_usec) >= (10000000 + (time_start.tv_sec * 1000000 + time_start.tv_usec))) {
 			if (data_plane_f_map.size() != 0) {
 				if (data_plane_c_map.size() == 0) {
 					map<uint64_t, data_plane_media_sdp_t>::iterator it = data_plane_f_map.begin();
@@ -121,6 +125,7 @@ static void *data_plane_send_hint_run_thread(void *arg) {
 
 				}
 			}
+			gettimeofday(&time_start, NULL);
 		}
 	}
 }
@@ -137,5 +142,15 @@ int data_plane_run() {
 	int err = pthread_create(&tid, NULL, &data_plane_send_hint_run_thread, NULL);
 	if (err != 0) {
 		printf("\ncan't create thread :[%s]", strerror(err));
+	}
+}
+
+/********************************************************************************/
+int data_plane_test() {
+	data_plane_init(2000, 3000, "./sound/1.wav");
+	data_plane_media_sdp_t data_media_sdp = data_plane_add_sender(SDP_F, inet_addr("127.0.0.1"), 88);
+	data_plane_run();
+	while (1) {
+		sleep(1);
 	}
 }
