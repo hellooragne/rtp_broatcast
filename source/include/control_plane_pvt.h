@@ -5,6 +5,7 @@
 #include "s_codec.h"
 #include <time.h>
 
+#include "data_plane.h"
 
 /**
     internal use only, DO NOT Use this h-file.
@@ -25,7 +26,7 @@ typedef struct {
     UINT16   u16LocalPort;      // signal port
     
     UINT16   u16MaxConn;        // total max connection. 1F+60C = 61
-    char     aFName[USER_LTH];        // F name
+    char     aFName[USER_LTH];  // F name
     
     UINT32   u32KATimer;        // keep-alive (ms)
     UINT32   u32OfflineTimer;   // offline timer (s)
@@ -45,6 +46,7 @@ typedef struct {
     BYTE             aUUID[ID_TOKEN_LTH];
     DWORD            dwSeq;
     BYTE             bMethod[METHOD_LTH];   // current transaction
+    data_plane_media_sdp_t   tMedia;
     
     // keep-alive
     INT32            n32TimeGotKA;

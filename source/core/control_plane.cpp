@@ -4,9 +4,11 @@
 
 #include <linux/limits.h>
 #include <netdb.h>
+
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+
 
 
 wifi_control_plane_confs_t   m_confs;
@@ -139,6 +141,7 @@ void  signal_callback(S_EV_L1L3_MESSAGE *ev)
                     }
                 }
                 break;
+                
             case MSG_RQST_DISCONN:
             case MSG_RQST_RESET:
             case MSG_RQST_NOTIFY:
@@ -375,7 +378,7 @@ void dispatch_ev_toC(CLIENT_t *ptC, CONN_SESSION *ptSession)
         handle_request_NOTIFY(ptC, ptSession);
         break;
     default:
-        printf("ERROR. Unsupported request type. Should NOT enter here, check code...");
+        printf("ERROR. Unsupported request type...");
         return;
     }
 
@@ -415,7 +418,7 @@ void handle_request_CONN(CLIENT_t *ptC, CONN_SESSION *ptSession)
 {
     //WORD    wMediaPort;
     CONN_SESSION   *ptResp;
-    BYTE          *pbMsg;
+    BYTE           *pbMsg;
     
 
     // TODO...
@@ -442,12 +445,19 @@ void handle_request_CONN(CLIENT_t *ptC, CONN_SESSION *ptSession)
     }
     
 
-    // TODO... activate media plane
-    // local-ip, local-port = notify-media(type,user-uuid,ip,port);    12345;
-    //const data_plane_media_sdp_t data_plane_add_sender(sdp_process_type_t sdp_type, struct sockaddr d_addr, uint16_t d_port);
+    // activate media plane
+    sdp_process_type_t eClientType = SDP_C;
+    if (ptC == &atClient[0]) {
+        eClientType = SDP_F;
+    }
+    //const data_plane_media_sdp_t   test = data_plane_add_sender(eClientType, *((struct sockaddr *)&ptC->tAddrRemoteMedia.ip_addr), ptC->tAddrRemoteMedia.port);
+    //ptC->tMedia = data_plane_add_sender(eClientType, *((struct sockaddr *)&ptC->tAddrRemoteMedia.ip_addr), ptC->tAddrRemoteMedia.port);
+    data_plane_media_sdp_t data_media_sdp = data_plane_add_sender(SDP_F, inet_addr("127.0.0.1"), 88);
 
+    /* useless 
     ptC->tAddrLocalMedia.ip_addr = inet_addr(&m_confs.aLocalIp[0]);
     ptC->tAddrLocalMedia.port    = 12345;
+    */
     
     // send out response
     ptResp = ptSession;
@@ -460,19 +470,26 @@ void handle_request_CONN(CLIENT_t *ptC, CONN_SESSION *ptSession)
     
     ptResp->bMap[MEDIA_SEQ_NUM] = 1;
     {
-        URL *ptUrl = &ptResp->tMedia.tUrl;
+        URL   *ptUrl = &ptResp->tMedia.tUrl;
+        char  *pStrIp;
 
         ptResp->tMedia.bMap[0] = 1;
         
         ptUrl->bMap[1] = 1;
         ptUrl->tHost.eType = eNAT_HOSTNAME;
         pbMsg = &ptUrl->tHost.unHost.bHostName[0];
-        WriteString(&pbMsg, (BYTE *)&m_confs.aLocalIp[0], NODE_ADDR_LTH);
+
+        pStrIp = inet_ntoa( *((struct in_addr *)&ptC->tMedia.s_addr) );
+        if (!pStrIp) {
+            printf("ERROR. Can NOT get host ip.\n");
+        }
+        WriteString(&pbMsg, (BYTE *)pStrIp, NODE_ADDR_LTH);
+        //WriteString(&pbMsg, (BYTE *)&m_confs.aLocalIp[0], NODE_ADDR_LTH);
 
         ptUrl->bMap[2] = 1;
-        ptUrl->wPort = m_confs.u16LocalPort;
+        ptUrl->wPort = ptC->tMedia.s_port;
     }
-    
+
     // send response to peer.
     sendResponse(&ptC->tAddrRemoteSignal, ptResp, 200, reinterpret_cast<const unsigned char *>("OK"));
     
