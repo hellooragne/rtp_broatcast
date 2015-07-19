@@ -194,6 +194,8 @@ typedef struct {
 
 
 
+BOOL8 WriteString(BYTE **, BYTE *, WORD);
+
 /*## operation P_ComDecode(BYTE *,WORD,CONN_SESSION *) */
 BOOL8 P_ComDecode(BYTE *  pbMsg, WORD  wLth, CONN_SESSION * ptConnSession);
 

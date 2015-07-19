@@ -83,16 +83,15 @@ typedef struct _error_info
 } ERROR_INFO;
 
 
-typedef  unsigned  char         IPV4_ADRESS[4];
-typedef  unsigned  char         IPV6_ADRESS[16];
+typedef  unsigned  char         IPV4_ADDR[4];
+typedef  unsigned  char         IPV6_ADDR[16];
 typedef  unsigned  short        IP_PORT;
 
 typedef struct _ip_address_port
 {
-    UINT32         ip_address;
+    UINT32         ip_addr;
     UINT16         port;
-
-} IP_ADDRESS_PORT_V4;
+} IP_ADDR_PORT_V4;
 
 
 /* Node address: IPV4, IPV6, DomainName... */
@@ -100,8 +99,8 @@ typedef struct _ip_address_port
 
 typedef  union {
 	BYTE        bHostName[NODE_ADDR_LTH];
-	IPV4_ADRESS Ipv4Addr;
-	IPV6_ADRESS Ipv6Addr;
+	IPV4_ADDR   Ipv4Addr;
+	IPV6_ADDR   Ipv6Addr;
 }UNNODE;
 
 typedef enum {

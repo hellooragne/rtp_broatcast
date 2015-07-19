@@ -5,7 +5,6 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-BOOL8 WriteString(BYTE **, BYTE *, WORD);
 
 BOOL8 ReadHCOLON(BYTE **  ppbMessage) 
 {
@@ -324,7 +323,7 @@ BOOL8 DecodeUserAgent(USERAGENT *ptUA, BYTE **ppbMessage)
 }
 
 
-BOOL8 P_SIP_ComDecode(BYTE *pbMsg, WORD wLth, CONN_SESSION *ptConnSession) 
+BOOL8 P_ComDecode(BYTE *pbMsg, WORD wLth, CONN_SESSION *ptConnSession) 
 {
     BYTE       bLocation;
     BYTE       bString[COMMEN_LTH];
@@ -471,11 +470,11 @@ BOOL8 P_ComEncode(BYTE *pbMsg, WORD *pwLth, CONN_SESSION *ptConnSession)
                 WriteString(&pbMsg, ptAddr->unHost.bHostName, NODE_ADDR_LTH);
             } else if (eNAT_IPV4 == ptAddr->eType) {
             	struct in_addr inaddr;
-            	BYTE  bTemp[16]={0};
+            	char * pStr;
             	memcpy(&inaddr, &ptAddr->unHost.Ipv4Addr, 4);
             	
-            	inet_ntoa_b(inaddr, const_cast<char *>(&bTemp[0]) );
-            	WriteString(&pbMsg, bTemp, 16);
+            	pStr = inet_ntoa(inaddr);
+            	WriteString(&pbMsg, (BYTE *)pStr, 16);
             } else {
                 return FALSE_B8;
             }
@@ -544,11 +543,11 @@ BOOL8 P_ComEncode(BYTE *pbMsg, WORD *pwLth, CONN_SESSION *ptConnSession)
             WriteString(&pbMsg, ptAddr->unHost.bHostName, NODE_ADDR_LTH);
         } else if (eNAT_IPV4 == ptAddr->eType) {
         	struct in_addr inaddr;
-        	BYTE   bTemp[16]={0};
+        	char * pStr;
         	memcpy(&inaddr, &ptAddr->unHost.Ipv4Addr, 4);
         	
-        	inet_ntoa_b(inaddr, (char *)(&bTemp[0]));
-        	WriteString(&pbMsg, bTemp, 16);
+        	pStr = inet_ntoa(inaddr);
+        	WriteString(&pbMsg, (BYTE *)pStr, 16);
         } else {
             return FALSE_B8;
         }
