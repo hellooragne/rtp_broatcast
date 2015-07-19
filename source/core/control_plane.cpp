@@ -55,19 +55,20 @@ BOOL8  control_plane_init(UINT16 u16LocalPort, UINT16 u16MaxConn,
     return TRUE_B8;
 }
 
-void  signal_callback(S_EV_L1L3_MESSAGE *ev)
+void  signal_callback(S_EV_L1L3_MESSAGE *pEv)
 {
     BOOL8   blResult;
     
-    printf("inside control-plane now,,, congratulations!!! \n");
+    printf("INFO recv ev.ip=[%d], ev.port=[%d], ev.len=[%d], ev.buf=%s\n", 
+        pEv->srcAddr.ip_addr, pEv->srcAddr.port, pEv->msgLen, pEv->msgBuf);
     
     // time-tick event
-    if (ev->eType == eEV_TYPE_TIMER_TICK) {
+    if (pEv->eType == eEV_TYPE_TIMER_TICK) {
         handle_req_time_tick();
         return;
     }
     
-    if (ev->eType != eEV_TYPE_MSG) {
+    if (pEv->eType != eEV_TYPE_MSG) {
         printf("ERROR. Got event bug NOT eEV_TYPE_MSG!!! \n");
         return;
     }
@@ -81,11 +82,11 @@ void  signal_callback(S_EV_L1L3_MESSAGE *ev)
         
         memset(&tSession, 0, sizeof(tSession));
         
-        blResult = P_ComDecode(ev->msgBuf, ev->msgLen, &tSession);
+        blResult = P_ComDecode(pEv->msgBuf, pEv->msgLen, &tSession);
         if (!blResult) {
-            printf("ERROR. Got mal-formed request!!! \n");
-            // return 400
-            // TODO...
+            printf("ERROR. Got mal-formed request, ignore. \n");
+            
+            sendMgrResponse(&pEv->srcAddr, &tSession, 400, reinterpret_cast<const unsigned char *>("Bad request. Mal-formed request."));
             return;
         }
         
@@ -114,7 +115,7 @@ void  signal_callback(S_EV_L1L3_MESSAGE *ev)
                         ptClient = &atClient[0];
                         if (ptClient->eState != eCLIENT_STATE_NONE) {
                             printf("ERROR. there has already another F logged on system, must LOGOUT or RESET first.");
-                            sendMgrResponse(&ev->srcAddr, &tSession, 486, reinterpret_cast<const unsigned char *>("Busy. Already has one F here."));
+                            sendMgrResponse(&pEv->srcAddr, &tSession, 486, reinterpret_cast<const unsigned char *>("Busy. Already has one F here."));
                             return;
                         }
                         
@@ -126,7 +127,7 @@ void  signal_callback(S_EV_L1L3_MESSAGE *ev)
                         ptClient = getClient();
                         if (!ptClient) {
                             printf("ERROR. System busy, there has no idle C-slot, please try LOGON later.");
-                            sendMgrResponse(&ev->srcAddr, &tSession, 486, reinterpret_cast<const unsigned char *>("Busy. System C slots are full. try again later."));
+                            sendMgrResponse(&pEv->srcAddr, &tSession, 486, reinterpret_cast<const unsigned char *>("Busy. System C slots are full. try again later."));
                             return;
                         }
                         
@@ -134,7 +135,7 @@ void  signal_callback(S_EV_L1L3_MESSAGE *ev)
                         init_client(ptClient, &tSession);
                         
                         // save signal socket
-                        ptClient->tAddrRemoteSignal = ev->srcAddr;
+                        ptClient->tAddrRemoteSignal = pEv->srcAddr;
                         
                         dispatch_ev_toC(ptClient, &tSession);
                     
@@ -146,7 +147,7 @@ void  signal_callback(S_EV_L1L3_MESSAGE *ev)
             case MSG_RQST_RESET:
             case MSG_RQST_NOTIFY:
                 // mis-target request OR instance is already released!
-                sendMgrResponse(&ev->srcAddr, &tSession, 404, reinterpret_cast<const unsigned char *>("Not found. The requested instance does not exist."));
+                sendMgrResponse(&pEv->srcAddr, &tSession, 404, reinterpret_cast<const unsigned char *>("Not found. The requested instance does not exist."));
                 return;
                 break;
             default:
@@ -234,6 +235,7 @@ void init_client(CLIENT_t *ptC, CONN_SESSION *ptSession)
     if (ptSession->bMap[FROM_SEQ_NUM] && ptSession->tFrom.bMap[0]) {
         pbMsg = (BYTE *)&ptC->aName[0];
         WriteString(&pbMsg, ptSession->tFrom.bName, USER_LTH);
+        *pbMsg = '\0';
     } else {
         // anonymous login
     }
@@ -241,9 +243,11 @@ void init_client(CLIENT_t *ptC, CONN_SESSION *ptSession)
     // save Session
     pbMsg = &ptC->aUUID[0];
     WriteString(&pbMsg, ptSession->tCallID.bIDToken, ID_TOKEN_LTH);
+    *pbMsg = '\0';
     ptC->dwSeq = ptSession->tCSeq.dwSeq;
     pbMsg = &ptC->bMethod[0];
     WriteString(&pbMsg, ptSession->tCSeq.bMethod, METHOD_LTH);
+    *pbMsg = '\0';
     
     ptC->n32TimeGotKA = time((time_t *)NULL);
     return;
@@ -267,6 +271,7 @@ void sendResponse(IP_ADDR_PORT_V4 *ptDest, CONN_SESSION *ptResp, DWORD dwSCode, 
     ptResp->tResponseLine.bMap[1] = 1;
     pbMsg = &ptResp->tResponseLine.bReason[0];
     WriteString(&pbMsg, (BYTE *)abReason, REASON_LTH);
+    *pbMsg = '\0';
     
     // generate response string
     blResult = P_ComEncode(bStrResp, &wLen, ptResp);
@@ -320,6 +325,7 @@ void sendMgrResponse(IP_ADDR_PORT_V4 *ptDest, CONN_SESSION *ptReq, DWORD dwSCode
     ptResp->tResponseLine.bMap[1] = 1;
     pbMsg = &ptResp->tResponseLine.bReason[0];
     WriteString(&pbMsg, (BYTE *)abReason, REASON_LTH);
+    *pbMsg = '\0';
     
     // generate response string
     blResult = P_ComEncode(bStrResp, &wLen, ptResp);
@@ -441,7 +447,8 @@ void handle_request_CONN(CLIENT_t *ptC, CONN_SESSION *ptSession)
     
     if (ptSession->bMap[MEDIA_SEQ_NUM] && ptSession->tMedia.bMap[0] && ptSession->tMedia.tUrl.bMap[2]) 
     {
-        ptC->tAddrRemoteMedia.port = htons(ptSession->tMedia.tUrl.wPort);
+        //ptC->tAddrRemoteMedia.port = htons(ptSession->tMedia.tUrl.wPort);
+        ptC->tAddrRemoteMedia.port = ptSession->tMedia.tUrl.wPort;
     }
     
 
@@ -452,12 +459,13 @@ void handle_request_CONN(CLIENT_t *ptC, CONN_SESSION *ptSession)
     }
     //const data_plane_media_sdp_t   test = data_plane_add_sender(eClientType, *((struct sockaddr *)&ptC->tAddrRemoteMedia.ip_addr), ptC->tAddrRemoteMedia.port);
     //ptC->tMedia = data_plane_add_sender(eClientType, *((struct sockaddr *)&ptC->tAddrRemoteMedia.ip_addr), ptC->tAddrRemoteMedia.port);
-    data_plane_media_sdp_t data_media_sdp = data_plane_add_sender(SDP_F, inet_addr("127.0.0.1"), 88);
+    //data_plane_media_sdp_t data_media_sdp = data_plane_add_sender(SDP_F, inet_addr("127.0.0.1"), 88);
 
-    /* useless 
-    ptC->tAddrLocalMedia.ip_addr = inet_addr(&m_confs.aLocalIp[0]);
+    /* useless */
+    //ptC->tAddrLocalMedia.ip_addr = inet_addr(&m_confs.aLocalIp[0]);
+    ptC->tAddrLocalMedia.ip_addr = inet_addr("192.169.1.1");
     ptC->tAddrLocalMedia.port    = 12345;
-    */
+    /* */
     
     // send out response
     ptResp = ptSession;
@@ -479,15 +487,20 @@ void handle_request_CONN(CLIENT_t *ptC, CONN_SESSION *ptSession)
         ptUrl->tHost.eType = eNAT_HOSTNAME;
         pbMsg = &ptUrl->tHost.unHost.bHostName[0];
 
-        pStrIp = inet_ntoa( *((struct in_addr *)&ptC->tMedia.s_addr) );
+        //pStrIp = inet_ntoa( *((struct in_addr *)&ptC->tMedia.s_addr) );
+        pStrIp = inet_ntoa( *((struct in_addr *)&ptC->tAddrLocalMedia.ip_addr) );
         if (!pStrIp) {
-            printf("ERROR. Can NOT get host ip.\n");
+            printf("ERROR. Can NOT get host ip. Check media plane.\n");
+            pStrIp = &m_confs.aLocalIp[0];
+            //WriteString(&pbMsg, (BYTE *)&m_confs.aLocalIp[0], NODE_ADDR_LTH);
+            //*pbMsg = '\0';
         }
         WriteString(&pbMsg, (BYTE *)pStrIp, NODE_ADDR_LTH);
-        //WriteString(&pbMsg, (BYTE *)&m_confs.aLocalIp[0], NODE_ADDR_LTH);
+        pbMsg[0] = '\0';
 
         ptUrl->bMap[2] = 1;
-        ptUrl->wPort = ptC->tMedia.s_port;
+        //ptUrl->wPort = ptC->tMedia.s_port;
+        ptUrl->wPort = ptC->tAddrLocalMedia.port;
     }
 
     // send response to peer.
@@ -500,7 +513,6 @@ void handle_request_reCONN(CLIENT_t *ptC, CONN_SESSION *ptSession)
 {
     // reset-media request...
     
-    //WORD    wMediaPort;
     CONN_SESSION   *ptResp;
     BYTE           *pbMsg;
     UINT32          u32IP   = 0;
@@ -540,7 +552,6 @@ void handle_request_reCONN(CLIENT_t *ptC, CONN_SESSION *ptSession)
         ptC->tAddrRemoteMedia.port = u16Port;
         
         // TODO... activate media plane
-        // local-ip, local-port = notify-media(type,user-uuid,ip,port);    12345;
         //const data_plane_media_sdp_t data_plane_add_sender(sdp_process_type_t sdp_type, struct sockaddr d_addr, uint16_t d_port);
     }
     
@@ -562,7 +573,22 @@ void handle_request_DISCONN(CLIENT_t *ptC, CONN_SESSION *ptSession)
 {
     // DIS-CONNECT request
     
-    sendMgrResponse(&ptC->tAddrRemoteSignal, ptSession, 501, reinterpret_cast<const unsigned char *>("Not implemented. Try next version"));
+    // TODO...
+    // compare target URL is same as our service-url
+    
+    // validation check
+    // TODO...
+    
+    // delete this endpoint from media-plane
+    sdp_process_type_t eClientType = SDP_C;
+    if (ptC == &atClient[0]) {
+        eClientType = SDP_F;
+    }
+    
+    data_plane_del_sender(eClientType, ptC->tMedia);
+    
+    sendMgrResponse(&ptC->tAddrRemoteSignal, ptSession, 200, reinterpret_cast<const unsigned char *>("OK"));
+
     return;
 }
 

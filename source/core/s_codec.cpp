@@ -13,6 +13,10 @@ BOOL8 ReadHCOLON(BYTE **  ppbMessage)
     	return FALSE_B8;
     (*ppbMessage)++;  /* ":" */
     
+    if (**ppbMessage==' ') {
+        (*ppbMessage)++;  /* " " */
+    }
+    
     return TRUE_B8;
 }
 
@@ -44,7 +48,7 @@ BOOL8 DecodeStartLine(REQUESTLINE *ptReq, STATUSLINE *ptResp, BYTE **ppbMessage)
     {
     	/* Status Code */
     	ptResp->wSCode = atoi((char*)bString);
-    	ptResp->bMap[RESP_LINE_SEQ_NUM] = 1;
+    	ptResp->bMap[0] = 1;
     	(*ppbMessage)++;
     
         /* Decode Reason-Phrase */
@@ -58,6 +62,8 @@ BOOL8 DecodeStartLine(REQUESTLINE *ptReq, STATUSLINE *ptResp, BYTE **ppbMessage)
         {
     		return FALSE_B8;
         }
+        
+        ptResp->bMap[1] = 1;
     
         (*ppbMessage)+=2;  /* \r\n */
     
@@ -76,7 +82,7 @@ BOOL8 DecodeStartLine(REQUESTLINE *ptReq, STATUSLINE *ptResp, BYTE **ppbMessage)
     	{
     		return FALSE_B8;
     	}
-    	ptReq->bMap[REQ_LINE_SEQ_NUM] = 1;
+    	ptReq->bMap[0] = 1;
     	(*ppbMessage)++;   /* ' ' */
     	
     	// user
@@ -89,11 +95,14 @@ BOOL8 DecodeStartLine(REQUESTLINE *ptReq, STATUSLINE *ptResp, BYTE **ppbMessage)
     	{
     		return FALSE_B8;
     	}
+    	
+        ptReq->bMap[1] = 1;
     	ptReq->tUrl.bMap[0] = 1;
+    	(*ppbMessage)++;   /* '@' */
 
         // host
         bLocation=0;
-        while ( (**ppbMessage!='\n')&&(bLocation<NODE_ADDR_LTH)&&(**ppbMessage!='\0') )
+        while ( (**ppbMessage!='\r')&&(bLocation<NODE_ADDR_LTH)&&(**ppbMessage!='\0') )
         {
         	ptReq->tUrl.tHost.unHost.bHostName[bLocation++]=*(*ppbMessage)++;
         }
@@ -103,6 +112,8 @@ BOOL8 DecodeStartLine(REQUESTLINE *ptReq, STATUSLINE *ptResp, BYTE **ppbMessage)
             
         ptReq->tUrl.bMap[1] = 1;
         ptReq->tUrl.tHost.eType = eNAT_HOSTNAME;
+        
+        (*ppbMessage)+=2;  /* \r\n */
         
         return TRUE_B8;
     }
@@ -132,6 +143,8 @@ BOOL8 DecodeCallID(CALLID *ptCallID, BYTE **ppbMessage)
 		return FALSE_B8;
 	}
 	ptCallID->bMap[0] = 1;
+	
+	(*ppbMessage)+=2;  /* \r\n */
     
     return TRUE_B8;
 }
@@ -160,6 +173,8 @@ BOOL8 DecodeCntLength(CNTLENGTH *ptCntLth, BYTE **ppbMessage)
 	
     ptCntLth->bMap[0] = 1;
     ptCntLth->wCntLength = atoi((char*)bString);
+	
+	(*ppbMessage)+=2;  /* \r\n */
 	
     return TRUE_B8;
 }
@@ -203,6 +218,8 @@ BOOL8 DecodeCSeq(CSEQ *ptCSeq, BYTE **ppbMessage)
     }
     ptCSeq->bMap[1]=1;
 
+    (*ppbMessage)+=2;  /* \r\n */
+    
     return TRUE_B8;
 }
 
@@ -227,6 +244,8 @@ BOOL8 DecodeEvent(EVENT *ptEvent, BYTE **ppbMessage)
 		return FALSE_B8;
 	}
 	ptEvent->bMap[0] = 1;
+	
+	(*ppbMessage)+=2;  /* \r\n */
     
     return TRUE_B8;
 }
@@ -253,6 +272,8 @@ BOOL8 DecodeFrom(FROM *ptFrom, BYTE **ppbMessage)
 		return FALSE_B8;
 	}
 	ptFrom->bMap[0] = 1;
+	
+	(*ppbMessage)+=2;  /* \r\n */
     
     return TRUE_B8;
 }
@@ -279,6 +300,8 @@ BOOL8 DecodeMedia(MEDIA *ptMedia, BYTE **ppbMessage)
     ptMedia->bMap[0] = 1;
     ptMedia->tUrl.bMap[1] = 1;
     ptMedia->tUrl.tHost.eType = eNAT_HOSTNAME;
+    
+    (*ppbMessage)++;  /* ':' */
 
     // port
     bLocation=0;
@@ -293,6 +316,8 @@ BOOL8 DecodeMedia(MEDIA *ptMedia, BYTE **ppbMessage)
 	bString[bLocation] = 0;
 	ptMedia->tUrl.bMap[2] = 1;
 	ptMedia->tUrl.wPort = atoi((char*)bString);
+	
+	(*ppbMessage)+=2;  /* \r\n */
 
     return TRUE_B8;
 }
@@ -318,6 +343,8 @@ BOOL8 DecodeUserAgent(USERAGENT *ptUA, BYTE **ppbMessage)
         
     ptUA->bMap[0] = 1;
     ptUA->bDescription[bLocation]='\0';
+    
+    (*ppbMessage)+=2;  /* \r\n */
 
     return TRUE_B8;
 }
@@ -340,7 +367,15 @@ BOOL8 P_ComDecode(BYTE *pbMsg, WORD wLth, CONN_SESSION *ptConnSession)
     if(!blResult) {
         return blResult;
     }
+    if (ptConnSession->tRequestLine.bMap[0] == 1) {
+        ptConnSession->bMap[REQ_LINE_SEQ_NUM] = 1;
+    } else if (ptConnSession->tResponseLine.bMap[0] == 1) {
+        ptConnSession->bMap[RESP_LINE_SEQ_NUM] = 1;
+    } else {
+        // error
+    }
     
+    getMsgType(ptConnSession);
     
     /* Decode header */
     while( (*pbMsg!=13)&&(*pbMsg!=0) )
@@ -361,28 +396,13 @@ BOOL8 P_ComDecode(BYTE *pbMsg, WORD wLth, CONN_SESSION *ptConnSession)
     	/* header body */
     
     	/* frequently used */
-    	if (StrICmp(bString,(BYTE*)"From"))
-    	{
-    		blResult = DecodeFrom(&ptConnSession->tFrom,&pbMsg);
-    		if (!blResult) {
-    		    return FALSE_B8;
-    		}
-    		continue;
-    	}
-    	else if (StrICmp(bString,(BYTE*)"Call-ID"))
+    	if (StrICmp(bString,(BYTE*)"Call-ID"))
     	{
     		blResult = DecodeCallID(&ptConnSession->tCallID,&pbMsg);
     		if (!blResult) {
     		    return FALSE_B8;
     		}
-    		continue;
-    	}
-    	else if (StrICmp(bString,(BYTE*)"Content-Length"))
-    	{
-    		blResult = DecodeCntLength(&ptConnSession->tCntLength,&pbMsg);
-    		if (!blResult) {
-    		    return FALSE_B8;
-    		}
+    		ptConnSession->bMap[CALLID_SEQ_NUM] = 1;
     		continue;
     	}
     	else if (StrICmp(bString,(BYTE*)"CSeq"))
@@ -391,14 +411,43 @@ BOOL8 P_ComDecode(BYTE *pbMsg, WORD wLth, CONN_SESSION *ptConnSession)
     		if (!blResult) {
     		    return FALSE_B8;
     		}
+    		ptConnSession->bMap[CSEQ_SEQ_NUM] = 1;
     		continue;
     	}
-    	else if (StrICmp(bString,(BYTE*)"Event")||StrICmp(bString,(BYTE*)"o"))
+    	else if (StrICmp(bString,(BYTE*)"Media"))
+    	{
+    		blResult = DecodeMedia(&ptConnSession->tMedia,&pbMsg);
+    		if (!blResult) {
+    		    return FALSE_B8;
+    		}
+    		ptConnSession->bMap[MEDIA_SEQ_NUM] = 1;
+    		continue;
+    	}
+    	else if (StrICmp(bString,(BYTE*)"From"))
+    	{
+    		blResult = DecodeFrom(&ptConnSession->tFrom,&pbMsg);
+    		if (!blResult) {
+    		    return FALSE_B8;
+    		}
+    		ptConnSession->bMap[FROM_SEQ_NUM] = 1;
+    		continue;
+    	}
+    	else if (StrICmp(bString,(BYTE*)"Event"))
     	{
     		blResult = DecodeEvent(&ptConnSession->tEvent,&pbMsg);
     		if (!blResult) {
     		    return FALSE_B8;
     		}
+    		ptConnSession->bMap[EVENT_SEQ_NUM] = 1;
+    		continue;
+    	}
+    	else if (StrICmp(bString,(BYTE*)"Content-Length"))
+    	{
+    		blResult = DecodeCntLength(&ptConnSession->tCntLength,&pbMsg);
+    		if (!blResult) {
+    		    return FALSE_B8;
+    		}
+    		ptConnSession->bMap[CONTENTLENGTH_SEQ_NUM] = 1;
     		continue;
     	}
     	else if (StrICmp(bString,(BYTE*)"User-Agent"))
@@ -407,10 +456,10 @@ BOOL8 P_ComDecode(BYTE *pbMsg, WORD wLth, CONN_SESSION *ptConnSession)
     		if (!blResult) {
     		    return FALSE_B8;
     		}
+    		ptConnSession->bMap[USERAGENT_SEQ_NUM] = 1;
     		continue;
     	}
-    
-    
+
     	/* unknown header * /
     	else
     	{
@@ -445,9 +494,7 @@ BOOL8 P_ComDecode(BYTE *pbMsg, WORD wLth, CONN_SESSION *ptConnSession)
 
 BOOL8 P_ComEncode(BYTE *pbMsg, WORD *pwLth, CONN_SESSION *ptConnSession)
 {
-    BOOL8   blResult;
     BYTE    bString[COMMEN_LTH];
-    blResult = FALSE_B8;
 
     if (ptConnSession->bMap[REQ_LINE_SEQ_NUM])  /* Request */
     {
@@ -539,6 +586,7 @@ BOOL8 P_ComEncode(BYTE *pbMsg, WORD *pwLth, CONN_SESSION *ptConnSession)
         NODE_ADDR  *ptAddr = &ptConnSession->tMedia.tUrl.tHost;
         
         WriteString(&pbMsg, (BYTE*)"Media: ", 8);
+        
         if (eNAT_HOSTNAME == ptAddr->eType) {
             WriteString(&pbMsg, ptAddr->unHost.bHostName, NODE_ADDR_LTH);
         } else if (eNAT_IPV4 == ptAddr->eType) {
@@ -551,8 +599,18 @@ BOOL8 P_ComEncode(BYTE *pbMsg, WORD *pwLth, CONN_SESSION *ptConnSession)
         } else {
             return FALSE_B8;
         }
+        
+        if (ptConnSession->tMedia.tUrl.bMap[2] == 1) {
+            *pbMsg++ = ':';
+            
+        	sprintf((char*)bString, "%d", ptConnSession->tMedia.tUrl.wPort);
+        	WriteString(&pbMsg, bString, 5);
+        }
+
+    	*pbMsg++ = '\r';
+    	*pbMsg++ = '\n';
     }
-    
+
     // User-Agent
     if (ptConnSession->bMap[USERAGENT_SEQ_NUM])
     {
@@ -561,7 +619,6 @@ BOOL8 P_ComEncode(BYTE *pbMsg, WORD *pwLth, CONN_SESSION *ptConnSession)
     	
     	*pbMsg++ = '\r';
     	*pbMsg++ = '\n';
-        
     }
     
     // Content-Length
@@ -573,12 +630,54 @@ BOOL8 P_ComEncode(BYTE *pbMsg, WORD *pwLth, CONN_SESSION *ptConnSession)
     	
     	*pbMsg++ = '\r';
     	*pbMsg++ = '\n';
-        
     }
     
-    return blResult;
+	*pbMsg++ = '\r';
+	*pbMsg++ = '\n';
+	
+	*pbMsg++ = '\0';
+	
+    return TRUE_B8;
 }
 
+void getMsgType(CONN_SESSION *pt)
+{
+    if (pt->bMap[REQ_LINE_SEQ_NUM]) {
+    
+        if (StrICmp(pt->tRequestLine.bMethod, (BYTE *)"CONN"))
+        	pt->eType = MSG_RQST_CONN;
+        else if (StrICmp(pt->tRequestLine.bMethod, (BYTE *)"DISCONN"))
+        	pt->eType = MSG_RQST_DISCONN;
+        else if (StrICmp(pt->tRequestLine.bMethod, (BYTE *)"RESET"))
+        	pt->eType = MSG_RQST_RESET;
+        else if (StrICmp(pt->tRequestLine.bMethod, (BYTE *)"NOTIFY"))
+        	pt->eType = MSG_RQST_NOTIFY;
+        else
+        	pt->eType = MSG_RQST_UNKNOWN;
+        
+    } else if (pt->bMap[RESP_LINE_SEQ_NUM]) {
+    
+        if (pt->tResponseLine.wSCode/100==1)
+        	pt->eType = MSG_RESP_1XX;
+        else if (pt->tResponseLine.wSCode/100==2)
+        	pt->eType = MSG_RESP_2XX;
+        else if (pt->tResponseLine.wSCode/100==3)
+        	pt->eType = MSG_RESP_3XX;
+        else if (pt->tResponseLine.wSCode/100==4)
+        	pt->eType = MSG_RESP_4XX;
+        else if (pt->tResponseLine.wSCode/100==5)
+        	pt->eType = MSG_RESP_5XX;
+        else if (pt->tResponseLine.wSCode/100==6)
+        	pt->eType = MSG_RESP_6XX;
+        else
+        	pt->eType = MSG_UNKNOWN;
+        
+    } else {
+        // 
+    }
+
+}
+    
 
 BOOL8 WriteString(BYTE **ppbMessage, BYTE *pbStr, WORD wLth) 
 {

@@ -29,12 +29,63 @@ int main() {
         return -1;
     }
     
-    // data plane
-    data_plane_test();
+    // init media plane
+    //data_plane_test();
+    data_plane_init(2000, 3000, "./sound/1.wav");
+    data_plane_run();
     
+    
+    /**
+     *  system running now
+     */
     blWifiRunning = TRUE_B8;
     
     // listen socket, process all signals
+    
+// comment this code after test....
+    {
+        S_EV_L1L3_MESSAGE    ev;   // message to Transaction layer
+    
+        memset(&ev, 0, sizeof(ev));
+        
+        if(false) {
+        // test time-tick
+            ev.eType = eEV_TYPE_TIMER_TICK;
+            signal_callback(&ev);
+        }
+
+        if (true) {
+        // test recv a signal message
+            INT32  nMsgLth;
+/*
+CONN wifi01@192.168.0.1
+From: "F-007"
+CALLID: 129d1446-0063-122c-15aa-001a923f6a0f
+CSeq: 1 CONN
+Media: 192.168.0.98:54321
+User-Agent: WifiClient/0.1
+Content-Length: 0
+*/
+            const char strSignal[] = "CONN wifi01@192.168.0.1\r\nFrom: F-007\r\nCALL-ID: 129d1446-0063-122c-15aa-001a923f6a0f\r\nCSeq: 1 CONN\r\nMedia: 192.168.0.98:54321\r\nUser-Agent: WifiClient/0.1\r\nContent-Length: 0\r\n\r\n";
+            nMsgLth = strlen(strSignal);
+            strcpy((char *)ev.msgBuf, strSignal);
+            //nMsgLth = recvfrom(Sockfd, ev.msgBuf, MAX_LTH, 0, &tPeerAddr, &u32Lth);
+            
+            ev.eType  = eEV_TYPE_MSG;
+            ev.msgLen = nMsgLth;
+            //ev.srcAddr.port = htons(9999);
+            ev.srcAddr.port = 9999;
+
+            ev.srcAddr.ip_addr = inet_addr("192.168.1.209");
+
+            // * recvieved a Useful Message, send to upper layer
+            printf("INFO. send TEST signal to control-plane.\n");
+            signal_callback(&ev);
+        }
+    }
+    
+    if (false)
+//
     {
         struct sockaddr_in tPeerAddr;
         INT32  nMsgLth, n32Ready;
@@ -94,7 +145,8 @@ int main() {
             {
                 ev.eType  = eEV_TYPE_MSG;
                 ev.msgLen = nMsgLth;
-                ev.srcAddr.port = htons(tPeerAddr.sin_port);
+                //ev.srcAddr.port = htons(tPeerAddr.sin_port);
+                ev.srcAddr.port = tPeerAddr.sin_port;
 
                 memcpy(&ev.srcAddr.ip_addr, &tPeerAddr.sin_addr.s_addr, 4);
 
