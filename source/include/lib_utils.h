@@ -4,5 +4,7 @@
 #include "types.h"
 
 BOOL strToLower(char *);
+BOOL8 StrICmp(BYTE *, BYTE *);
 
 #endif // __LIB_UTILS_H__
+

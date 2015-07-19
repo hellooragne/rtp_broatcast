@@ -1,9 +1,12 @@
 #include <stdio.h>
 #include "types.h"
 #include "config.h"
-
+/*
+#include "control_plane.h"
+#include <time.h>
+#include <errno.h>
+*/
 #include "data_plane.h"
-
 
 static global_confs_t global_confs;
 
@@ -13,7 +16,7 @@ int main() {
 	printf("hello broadcast rtp\n");
     
     // load configure data
-    //n32Result = load_config(&global_confs, FALSE_B8);
+    n32Result = load_config(&global_confs, FALSE_B8);
     
 	data_plane_test();
 

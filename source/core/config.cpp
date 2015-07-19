@@ -1,7 +1,8 @@
 #include "config.h"
 #include "lib_utils.h"
+#include <assert.h>
 
-static INT32 load_config(global_confs_t *pConf, BOOL8 blReload)
+INT32 load_config(global_confs_t *pConf, BOOL8 blReload)
 {
     FILE        *pFileCfg;        /* Transaction */
     char         chLine[256];
