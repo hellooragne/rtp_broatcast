@@ -39,7 +39,9 @@ typedef enum {
 
 int data_plane_init(uint32_t rtp_port_start, uint32_t rtp_port_end, const char *filename);
 
-const data_plane_media_sdp_t data_plane_add_sender(sdp_process_type_t sdp_type, struct sockaddr d_addr, uint16_t d_port);
+const data_plane_media_sdp_t data_plane_add_sender(sdp_process_type_t sdp_type, in_addr_t d_addr, uint16_t d_port);
+
+//const data_plane_media_sdp_t data_plane_add_sender(sdp_process_type_t sdp_type, struct sockaddr d_addr, uint16_t d_port);
 
 int data_plane_del_sender(sdp_process_type_t sdp_type, const data_plane_media_sdp_t media_sdp);
 
