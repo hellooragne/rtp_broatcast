@@ -106,6 +106,7 @@ static void *data_plane_send_hint_run_thread(void *arg) {
 	gettimeofday(&time_start, NULL);
 
 	while (1) {
+		/*
 		struct  timeval time_now;
 		gettimeofday(&time_now, NULL);
 
@@ -127,6 +128,24 @@ static void *data_plane_send_hint_run_thread(void *arg) {
 			}
 			gettimeofday(&time_start, NULL);
 		}
+		*/
+
+		if (data_plane_f_map.size() != 0) {
+			if (data_plane_c_map.size() == 0) {
+				map<uint64_t, data_plane_media_sdp_t>::iterator it = data_plane_f_map.begin();
+				while (it != data_plane_f_map.end()) {
+					send_hint_sound(it->second);
+					++it;
+				}
+			}
+		}
+
+		if (data_plane_c_map.size() != 0) {
+			if (data_plane_f_map.size() == 0) {
+
+			}
+		}
+		usleep(2000000);
 	}
 }
 
