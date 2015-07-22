@@ -13,6 +13,8 @@ BOOL8  blWifiRunning = FALSE_B8;
 BOOL8 init_socket(UINT32 *);
 
 int main() {
+    //data_plane_test();
+	
     BOOL8  blResult;
 	INT32  n32Result;
 	printf("hello broadcast rtp\n");

@@ -23,7 +23,10 @@ static map <uint64_t, data_plane_media_sdp_t> data_plane_c_map;
 static uint8_t *media_file_buf;
 static int      media_file_len; 
 
+static pthread_spinlock_t media_map_lock = 0;
+
 int data_plane_init(uint32_t rtp_port_start, uint32_t rtp_port_end, const char *filename) {
+	pthread_spin_init(&media_map_lock, PTHREAD_PROCESS_SHARED);
 	data_plane_port_range.port_start = rtp_port_start;
 	data_plane_port_range.port_end = rtp_port_end;
 	SF_INFO sf_info;
@@ -40,7 +43,6 @@ int data_plane_init(uint32_t rtp_port_start, uint32_t rtp_port_end, const char *
 }
 
 const data_plane_media_sdp_t data_plane_add_sender(sdp_process_type_t sdp_type, in_addr_t d_addr, uint16_t d_port) {
-
 	struct  timeval time_now;
 	gettimeofday(&time_now, NULL);
 	uint64_t key = time_now.tv_sec * 1000000 + time_now.tv_usec;
@@ -51,7 +53,9 @@ const data_plane_media_sdp_t data_plane_add_sender(sdp_process_type_t sdp_type, 
 		media_sdp.d_addr = d_addr;
 		media_sdp.d_port = d_port;
 
+		pthread_spin_lock(&media_map_lock);
 		data_plane_f_map[key] = media_sdp;
+		pthread_spin_unlock(&media_map_lock);
 
 		return media_sdp;
 
@@ -61,12 +65,16 @@ const data_plane_media_sdp_t data_plane_add_sender(sdp_process_type_t sdp_type, 
 		media_sdp.d_addr = d_addr;
 		media_sdp.d_port = d_port;
 
+		pthread_spin_lock(&media_map_lock);
 		data_plane_c_map[key] = media_sdp;
+		pthread_spin_unlock(&media_map_lock);
 		return media_sdp;
 	}
 }
 
 int data_plane_del_sender(sdp_process_type_t sdp_type, const data_plane_media_sdp_t media_sdp) {
+
+	pthread_spin_lock(&media_map_lock);
 
 	if (sdp_type == SDP_F) {
 
@@ -76,6 +84,8 @@ int data_plane_del_sender(sdp_process_type_t sdp_type, const data_plane_media_sd
 
 		data_plane_c_map.erase(media_sdp.key);
 	}
+
+	pthread_spin_unlock(&media_map_lock);
 }
 
 static void send_hint_sound(data_plane_media_sdp_t sdp) {
@@ -130,11 +140,14 @@ static void *data_plane_send_hint_run_thread(void *arg) {
 		}
 		*/
 
+		pthread_spin_lock(&media_map_lock);
 		if (data_plane_f_map.size() != 0) {
 			if (data_plane_c_map.size() == 0) {
 				map<uint64_t, data_plane_media_sdp_t>::iterator it = data_plane_f_map.begin();
 				while (it != data_plane_f_map.end()) {
+					pthread_spin_unlock(&media_map_lock);
 					send_hint_sound(it->second);
+					pthread_spin_lock(&media_map_lock);
 					++it;
 				}
 			}
@@ -145,6 +158,8 @@ static void *data_plane_send_hint_run_thread(void *arg) {
 
 			}
 		}
+		pthread_spin_unlock(&media_map_lock);
+
 		usleep(2000000);
 	}
 }
