@@ -36,7 +36,7 @@ int data_plane_init(uint32_t rtp_port_start, uint32_t rtp_port_end, const char *
 		media_file_buf = (uint8_t *)malloc(sf_info.frames);
 		int file_ret = media_file_read(fd, media_file_buf, sf_info.frames);
 		media_file_len = sf_info.frames;
-		printf("media file len %lld\n", sf_info.frames);
+		printf("file ret %d media file len %lld\n", file_ret, sf_info.frames);
 	} else {
 		printf("can not open file\n");
 	}
@@ -102,6 +102,7 @@ static void send_hint_sound(data_plane_media_sdp_t sdp) {
 		if ((time_now.tv_sec * 1000000 + time_now.tv_usec) >= (20000 + (time_start.tv_sec * 1000000 + time_start.tv_usec))) {
 			if (i * 160 <= media_file_len) {
 				rtp_process_send(&rtp_process_tmp, media_index + 160 * i, 160);
+				//rtp_process_send(&rtp_process_tmp, (uint8_t *)"12345678", 8);
 			} else {
 				return;
 			}
@@ -182,7 +183,7 @@ int data_plane_run() {
 /********************************************************************************/
 int data_plane_test() {
 	data_plane_init(2000, 3000, "./sound/1.wav");
-	data_plane_media_sdp_t data_media_sdp = data_plane_add_sender(SDP_F, inet_addr("127.0.0.1"), 88);
+	data_plane_media_sdp_t data_media_sdp = data_plane_add_sender(SDP_F, inet_addr("192.168.1.103"), 88);
 	data_plane_run();
 	while (1) {
 		sleep(1);
