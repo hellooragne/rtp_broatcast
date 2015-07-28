@@ -7,6 +7,6 @@ SNDFILE *media_file_open(const char *filename, SF_INFO &sf_info) {
 }
 
 int  media_file_read(SNDFILE *snd_file, void *buf, int inlen) {
-	int len = (size_t) sf_read_raw(snd_file, buf, inlen);
+	int len = (size_t) sf_readf_short(snd_file, (short *)buf, inlen);
 	return len;
 }
