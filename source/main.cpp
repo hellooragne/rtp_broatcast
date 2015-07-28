@@ -43,6 +43,7 @@ int main() {
     // listen socket, process all signals
     
 // comment this code after test....
+    if (false)
     {
         S_EV_L1L3_MESSAGE    ev;   // message to Transaction layer
     
@@ -54,7 +55,8 @@ int main() {
             signal_callback(&ev);
         }
 
-        if (true) {
+        //if (false) 
+        {
         // test recv a signal message
             INT32  nMsgLth;
 /*
@@ -84,7 +86,7 @@ Content-Length: 0
         }
     }
     
-    if (false)
+    //if (false)
 //
     {
         struct sockaddr_in tPeerAddr;
