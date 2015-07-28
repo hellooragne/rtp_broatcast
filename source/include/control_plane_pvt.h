@@ -36,16 +36,17 @@ typedef struct {
 
 typedef struct {
     eCLIENT_STATE    eState;
-    
     char             aName[USER_LTH];
-    IP_ADDR_PORT_V4  tAddrRemoteSignal;        // client's singal socket // net-addr type
-    IP_ADDR_PORT_V4  tAddrLocalMedia;          // server's media socket  // host-addr type
-    IP_ADDR_PORT_V4  tAddrRemoteMedia;         // client's media socket  // net-addr type
     
     // Session
     BYTE             aUUID[ID_TOKEN_LTH];
     DWORD            dwSeq;
     BYTE             bMethod[METHOD_LTH];   // current transaction
+    
+    IP_ADDR_PORT_V4  tAddrRemoteSignal;        // client's singal socket // net-addr type
+    IP_ADDR_PORT_V4  tAddrRemoteMedia;         // client's media socket  // net-addr type
+    
+    IP_ADDR_PORT_V4  tAddrLocalMedia;          // server's media socket  // host-addr type
     data_plane_media_sdp_t   tMedia;
     
     // keep-alive
@@ -58,6 +59,7 @@ typedef struct {
 
 
 void locateClientByUUID(BYTE *, BYTE *, BOOL8 *, CLIENT_t **);
+void locateClientByName(BYTE *, BOOL8 *, CLIENT_t **);
 CLIENT_t * getClient();
 void freeClient(CLIENT_t *);
 void init_client(CLIENT_t *, CONN_SESSION *);

@@ -18,7 +18,22 @@ wifi_control_plane_confs_t   m_confs;
  atClient[1-60]   :   C1 - C60
  */
 CLIENT_t atClient[MAX_CONNECT_CLIENT];
-
+/*
+typedef enum {
+    eCLIENT_STATE_NONE,
+    eCLIENT_STATE_CONNECTED,
+    eCLIENT_STATE_INACTIVE,
+    eCLIENT_STATE_LOST,
+    eCLIENT_STATE_MAX
+}eCLIENT_STATE;
+*/
+BYTE abClientState[][32] = {
+    "STATE_NONE",
+    "STATE_CONNECTED",
+    "STATE_INACTIVE",
+    "STATE_LOST",
+    "",
+};
 
 
 
@@ -122,6 +137,9 @@ void  signal_callback(S_EV_L1L3_MESSAGE *pEv)
                         // init F
                         init_client(ptClient, &tSession);
                         
+                        // save signal socket
+                        ptClient->tAddrRemoteSignal = pEv->srcAddr;
+                        
                         dispatch_ev_toF(&tSession);
                     } else {
                         ptClient = getClient();
@@ -143,12 +161,33 @@ void  signal_callback(S_EV_L1L3_MESSAGE *pEv)
                 }
                 break;
                 
-            case MSG_RQST_DISCONN:
             case MSG_RQST_RESET:
+                {
+                    // RESET channel when F/C restart
+                    locateClientByName(pName, &blF, &ptClient);
+                    
+                    if (ptClient) {
+                    // FOUND
+                        if (blF) {
+                            dispatch_ev_toF(&tSession);
+                        } else {
+                            dispatch_ev_toC(ptClient, &tSession);
+                        }
+                    } else {
+                    // NOT FOUND
+                        // ignore. instance is already released.
+                        printf("WARNING. Instance of user[%s] is already released.", (char *)pName);
+                    }
+                }
+                break;
+                
+            case MSG_RQST_DISCONN:
             case MSG_RQST_NOTIFY:
                 // mis-target request OR instance is already released!
                 sendMgrResponse(&pEv->srcAddr, &tSession, 404, reinterpret_cast<const unsigned char *>("Not found. The requested instance does not exist."));
+                printf("WARNING. Instance of request[%d] DOES NOT found.", tSession.eType);
                 return;
+                
                 break;
             default:
                 return;
@@ -175,6 +214,36 @@ void locateClientByUUID(BYTE *pName, BYTE *pUUID, BOOL8 *pblF, CLIENT_t **ptC)
         }
         
         if (StrICmp(pUUID,atClient[i].aUUID)) {
+            // found, return
+            if (i == 0)
+                *pblF = TRUE_B8;
+            *ptC = &atClient[i];
+            return;
+        }
+        
+    }
+    
+    // NOT found, check F-Name
+    if (StrICmp((BYTE *)m_confs.aFName, pName)) {
+        *pblF = TRUE_B8;
+    }
+    
+    return;
+}
+
+void locateClientByName(BYTE *pName, BOOL8 *pblF, CLIENT_t **ptC)
+{
+    *ptC = NULL;
+    *pblF = FALSE_B8;
+    
+    INT32 i;
+    for (i=0; i<MAX_CONNECT_CLIENT; i++)
+    {
+        if (atClient[i].eState == eCLIENT_STATE_NONE) {
+            continue;
+        }
+        
+        if (StrICmp(pName,(BYTE *)atClient[i].aName)) {
             // found, return
             if (i == 0)
                 *pblF = TRUE_B8;
@@ -229,7 +298,6 @@ void init_client(CLIENT_t *ptC, CONN_SESSION *ptSession)
     DWORD    dwIPAddr;
     
     memset(ptC, 0, sizeof(*ptC));
-    
     //ptC->eState = eCLIENT_STATE_NONE;
     
     if (ptSession->bMap[FROM_SEQ_NUM] && ptSession->tFrom.bMap[0]) {
@@ -360,6 +428,10 @@ void dispatch_ev_toF(CONN_SESSION *ptSession)
 
 void dispatch_ev_toC(CLIENT_t *ptC, CONN_SESSION *ptSession)
 {
+    // TODO...
+    // compare target URL is same as our service-url
+    
+    
     switch (ptSession->eType) {
     case MSG_RQST_CONN:
         {
@@ -407,13 +479,19 @@ void handle_req_time_tick()
         nDiffSecs = nSecs - atClient[i].n32TimeGotKA;
         if (nDiffSecs > m_confs.u32OfflineTimer) {
             // release this client SCILENTLY...
-            memset(&atClient[i], 0, sizeof(atClient[i]));
+            freeClient(&atClient[i]);
 
-            // NOTIFY media plane
-            // TODO...
+            // delete... media-plane
+            sdp_process_type_t eClientType = (0 == i) ? SDP_F : SDP_C;
+            data_plane_del_sender(eClientType, atClient[i].tMedia);
+            
         } else if (nDiffSecs > nInactiveSecs) {
-            // inactive, NOTIFY media module t stop sending/recieving???
+            // inactive, NOTIFY media module t stop sending/recieving
             atClient[i].eState = eCLIENT_STATE_INACTIVE;
+            
+            // DELETE is good enought for this project.
+            sdp_process_type_t eClientType = (0 == i) ? SDP_F : SDP_C;
+            data_plane_del_sender(eClientType, atClient[i].tMedia);
             
         }
         
@@ -425,10 +503,7 @@ void handle_request_CONN(CLIENT_t *ptC, CONN_SESSION *ptSession)
     //WORD    wMediaPort;
     CONN_SESSION   *ptResp;
     BYTE           *pbMsg;
-    
 
-    // TODO...
-    // compare target URL is same as our service-url
     
     // save remote-media ip + port
     ptC->tAddrRemoteMedia.ip_addr = INADDR_NONE;
@@ -440,32 +515,29 @@ void handle_request_CONN(CLIENT_t *ptC, CONN_SESSION *ptSession)
     {
         printf("ERROR. receive CONN request, but Media IP is invalid. Ignore request AND release instance...");
         
-        ptC->eState = eCLIENT_STATE_NONE;
+        freeClient(ptC);
         sendMgrResponse(&ptC->tAddrRemoteSignal, ptSession, 400, reinterpret_cast<const unsigned char *>("Media header error."));
         return;
     }
     
     if (ptSession->bMap[MEDIA_SEQ_NUM] && ptSession->tMedia.bMap[0] && ptSession->tMedia.tUrl.bMap[2]) 
     {
-        //ptC->tAddrRemoteMedia.port = htons(ptSession->tMedia.tUrl.wPort);
         ptC->tAddrRemoteMedia.port = ptSession->tMedia.tUrl.wPort;
     }
     
 
     // activate media plane
-    sdp_process_type_t eClientType = SDP_C;
-    if (ptC == &atClient[0]) {
-        eClientType = SDP_F;
-    }
-    //const data_plane_media_sdp_t   test = data_plane_add_sender(eClientType, *((struct sockaddr *)&ptC->tAddrRemoteMedia.ip_addr), ptC->tAddrRemoteMedia.port);
-    //ptC->tMedia = data_plane_add_sender(eClientType, *((struct sockaddr *)&ptC->tAddrRemoteMedia.ip_addr), ptC->tAddrRemoteMedia.port);
-    //data_plane_media_sdp_t data_media_sdp = data_plane_add_sender(SDP_F, inet_addr("127.0.0.1"), 88);
+    sdp_process_type_t eClientType = (ptC == &atClient[0]) ? SDP_F : SDP_C;
+    ptC->tMedia = data_plane_add_sender(eClientType, ptC->tAddrRemoteMedia.ip_addr, ptC->tAddrRemoteMedia.port);
 
-    /* useless */
+    /* useless
+    // TODO... TEST code, remove immediatelly.
+    //ptC->tMedia.s_addr = ptC->tAddrRemoteMedia.ip_addr;
+
     //ptC->tAddrLocalMedia.ip_addr = inet_addr(&m_confs.aLocalIp[0]);
     ptC->tAddrLocalMedia.ip_addr = inet_addr("192.169.1.1");
     ptC->tAddrLocalMedia.port    = 12345;
-    /* */
+    */
     
     // send out response
     ptResp = ptSession;
@@ -487,20 +559,16 @@ void handle_request_CONN(CLIENT_t *ptC, CONN_SESSION *ptSession)
         ptUrl->tHost.eType = eNAT_HOSTNAME;
         pbMsg = &ptUrl->tHost.unHost.bHostName[0];
 
-        //pStrIp = inet_ntoa( *((struct in_addr *)&ptC->tMedia.s_addr) );
-        pStrIp = inet_ntoa( *((struct in_addr *)&ptC->tAddrLocalMedia.ip_addr) );
+        pStrIp = inet_ntoa( *((struct in_addr *)&ptC->tMedia.s_addr) );
         if (!pStrIp) {
             printf("ERROR. Can NOT get host ip. Check media plane.\n");
             pStrIp = &m_confs.aLocalIp[0];
-            //WriteString(&pbMsg, (BYTE *)&m_confs.aLocalIp[0], NODE_ADDR_LTH);
-            //*pbMsg = '\0';
         }
         WriteString(&pbMsg, (BYTE *)pStrIp, NODE_ADDR_LTH);
         pbMsg[0] = '\0';
 
         ptUrl->bMap[2] = 1;
-        //ptUrl->wPort = ptC->tMedia.s_port;
-        ptUrl->wPort = ptC->tAddrLocalMedia.port;
+        ptUrl->wPort = ptC->tMedia.s_port;
     }
 
     // send response to peer.
@@ -519,9 +587,6 @@ void handle_request_reCONN(CLIENT_t *ptC, CONN_SESSION *ptSession)
     UINT16          u16Port = 0;
     
 
-    // TODO...
-    // compare target URL is same as our service-url
-    
     // remote-media ip + port
     if (ptSession->bMap[MEDIA_SEQ_NUM] && ptSession->tMedia.bMap[0] && ptSession->tMedia.tUrl.bMap[1]) 
     {
@@ -537,7 +602,8 @@ void handle_request_reCONN(CLIENT_t *ptC, CONN_SESSION *ptSession)
 
     if (ptSession->bMap[MEDIA_SEQ_NUM] && ptSession->tMedia.bMap[0] && ptSession->tMedia.tUrl.bMap[2]) 
     {
-        u16Port = htons(ptSession->tMedia.tUrl.wPort);
+        //u16Port = htons(ptSession->tMedia.tUrl.wPort);
+        u16Port = ptSession->tMedia.tUrl.wPort;
     }
     
     // validation check
@@ -545,14 +611,17 @@ void handle_request_reCONN(CLIENT_t *ptC, CONN_SESSION *ptSession)
     
     // send to media-plane
     if ( (u32IP == ptC->tAddrRemoteMedia.ip_addr) && (u16Port == ptC->tAddrRemoteMedia.ip_addr) ) {
-        // just return 200-OK
+        // goto below, just return 200-OK.
     }
     else {
         ptC->tAddrRemoteMedia.ip_addr = u32IP;
         ptC->tAddrRemoteMedia.port = u16Port;
         
-        // TODO... activate media plane
-        //const data_plane_media_sdp_t data_plane_add_sender(sdp_process_type_t sdp_type, struct sockaddr d_addr, uint16_t d_port);
+        // update media plane
+        sdp_process_type_t eClientType = (ptC == &atClient[0]) ? SDP_F : SDP_C;
+        data_plane_del_sender(eClientType, ptC->tMedia);
+        ptC->tMedia = data_plane_add_sender(eClientType, ptC->tAddrRemoteMedia.ip_addr, ptC->tAddrRemoteMedia.port);
+        
     }
     
     // send out response
@@ -563,8 +632,32 @@ void handle_request_reCONN(CLIENT_t *ptC, CONN_SESSION *ptSession)
     ptResp->bMap[CALLID_SEQ_NUM] = 1;
     ptResp->bMap[CSEQ_SEQ_NUM] = 1;
     
+    ptResp->bMap[MEDIA_SEQ_NUM] = 1;
+    {
+        URL   *ptUrl = &ptResp->tMedia.tUrl;
+        char  *pStrIp;
+
+        ptResp->tMedia.bMap[0] = 1;
+        
+        ptUrl->bMap[1] = 1;
+        ptUrl->tHost.eType = eNAT_HOSTNAME;
+        pbMsg = &ptUrl->tHost.unHost.bHostName[0];
+
+        pStrIp = inet_ntoa( *((struct in_addr *)&ptC->tMedia.s_addr) );
+        if (!pStrIp) {
+            printf("ERROR. Can NOT get host ip. Check media plane.\n");
+            pStrIp = &m_confs.aLocalIp[0];
+        }
+        WriteString(&pbMsg, (BYTE *)pStrIp, NODE_ADDR_LTH);
+        pbMsg[0] = '\0';
+
+        ptUrl->bMap[2] = 1;
+        ptUrl->wPort = ptC->tMedia.s_port;
+    }
+    
     // send response to peer.
     sendResponse(&ptC->tAddrRemoteSignal, ptResp, 200, reinterpret_cast<const unsigned char *>("OK"));
+    //sendResponse(&ptC->tAddrRemoteSignal, ptResp, 400, reinterpret_cast<const unsigned char *>("Currently, we do not support Change-Media-During-Session"));
     
     return;
 }
@@ -573,18 +666,13 @@ void handle_request_DISCONN(CLIENT_t *ptC, CONN_SESSION *ptSession)
 {
     // DIS-CONNECT request
     
-    // TODO...
-    // compare target URL is same as our service-url
-    
     // validation check
     // TODO...
     
-    // delete this endpoint from media-plane
-    sdp_process_type_t eClientType = SDP_C;
-    if (ptC == &atClient[0]) {
-        eClientType = SDP_F;
-    }
+    freeClient(ptC);
     
+    // delete media-plane
+    sdp_process_type_t eClientType = (ptC == &atClient[0]) ? SDP_F : SDP_C;
     data_plane_del_sender(eClientType, ptC->tMedia);
     
     sendMgrResponse(&ptC->tAddrRemoteSignal, ptSession, 200, reinterpret_cast<const unsigned char *>("OK"));
@@ -594,13 +682,111 @@ void handle_request_DISCONN(CLIENT_t *ptC, CONN_SESSION *ptSession)
 
 void handle_request_RESET(CLIENT_t *ptC, CONN_SESSION *ptSession)
 {
-    sendMgrResponse(&ptC->tAddrRemoteSignal, ptSession, 501, reinterpret_cast<const unsigned char *>("Not implemented. Try next version"));
+    freeClient(ptC);
+    
+    sdp_process_type_t eClientType = (ptC == &atClient[0]) ? SDP_F : SDP_C;
+    data_plane_del_sender(eClientType, ptC->tMedia);
+    
+    sendMgrResponse(&ptC->tAddrRemoteSignal, ptSession, 200, reinterpret_cast<const unsigned char *>("OK. Instance is already released."));
     return;
 }
 
 void handle_request_NOTIFY(CLIENT_t *ptC, CONN_SESSION *ptSession)
 {
-    sendMgrResponse(&ptC->tAddrRemoteSignal, ptSession, 501, reinterpret_cast<const unsigned char *>("Not implemented. Try next version"));
+    CONN_SESSION   *ptResp;
+    BYTE           *pbMsg;
+    
+    do
+    {
+        // each NOTIFY message will be considered to KEEP-ALIVE message.
+        ptC->n32TimeGotKA = time( (time_t *)NULL );
+        if (0 == ptSession->bMap[EVENT_SEQ_NUM]) {
+            // keep-alive NOTIFY.
+            
+            // if state already inactive | x | x ..., then we need resume media plane.
+            if (ptC->eState == eCLIENT_STATE_INACTIVE) {
+                ptC->eState = eCLIENT_STATE_CONNECTED;
+                
+                // re-add media plane
+                sdp_process_type_t eClientType = (ptC == &atClient[0]) ? SDP_F : SDP_C;
+                //ptC->tMedia = data_plane_add_sender(eClientType, ptC->tAddrRemoteMedia.ip_addr, ptC->tAddrRemoteMedia.port);
+                data_plane_add_sender(eClientType, ptC->tAddrRemoteMedia.ip_addr, ptC->tAddrRemoteMedia.port);
+                
+            }
+            
+            break;
+        }
+        
+        // client request for self-state
+        if (StrICmp(ptSession->tEvent.bName, (BYTE *)"logon-state")) {
+            BYTE   *pbMsg = &ptSession->bBody[0];
+            
+            WriteString(&pbMsg, (BYTE *)"State: ", MAX_BODY_LTH);
+            WriteString(&pbMsg, abClientState[ptC->eState], MAX_BODY_LTH);
+            //&pbMsg++ = '\0';
+            
+            ptSession->wBdyLth = pbMsg - &ptSession->bBody[0];
+            
+            break;
+        }
+        
+        // F request for C-list
+        else if (StrICmp(ptSession->tEvent.bName, (BYTE *)"listener-list")) {
+            BYTE   *pbMsg = &ptSession->bBody[0];
+            BYTE    i;
+            BYTE    bString[COMMEN_LTH];
+            
+            if (ptC != &atClient[0]) {
+            // NOT F. reject this request.
+                sendMgrResponse(&ptC->tAddrRemoteSignal, ptSession, 403, reinterpret_cast<const unsigned char *>("Forbidden. You have no right to access this infomation."));
+                return;
+            }
+            
+            for (i=1; i<MAX_CONNECT_CLIENT; i++) {
+                if (atClient[i].eState == eCLIENT_STATE_NONE) {
+                    continue;
+                }
+                
+                sprintf((char*)bString, "%d", i);
+                WriteString(&pbMsg, &bString[0], COMMEN_LTH);
+                *pbMsg++ = ':';
+                WriteString(&pbMsg, (BYTE *)&ptC->aName[0], USER_LTH);
+                *pbMsg++ = ':';
+                WriteString(&pbMsg, (BYTE *)inet_ntoa( *((struct in_addr *)&ptC->tAddrRemoteSignal.ip_addr) ), HOST_NAME_LTH);
+                
+                *pbMsg++ = '\r';
+                *pbMsg++ = '\n';
+            }
+            
+            ptSession->wBdyLth = pbMsg - &ptSession->bBody[0];
+            
+            break;
+            
+        }
+        
+        else {
+            // NOT supported event.
+            sendMgrResponse(&ptC->tAddrRemoteSignal, ptSession, 400, reinterpret_cast<const unsigned char *>("Unknown event type."));
+            return;
+        }
+        
+    } while(0);
+        
+   
+    // send out response
+    ptResp = ptSession;
+
+    memset(&ptResp->bMap[0], 0, sizeof(ptResp->bMap));
+    
+    ptResp->bMap[CALLID_SEQ_NUM] = 1;
+    ptResp->bMap[CSEQ_SEQ_NUM] = 1;
+    
+    // content-length: Automatic done. 
+    //
+    
+    // send response to peer.
+    sendResponse(&ptC->tAddrRemoteSignal, ptResp, 200, reinterpret_cast<const unsigned char *>("OK"));
+    
     return;
 }
 

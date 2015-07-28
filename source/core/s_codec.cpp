@@ -496,7 +496,15 @@ BOOL8 P_ComEncode(BYTE *pbMsg, WORD *pwLth, CONN_SESSION *ptConnSession)
 {
     BYTE    bString[COMMEN_LTH];
 
-    if (ptConnSession->bMap[REQ_LINE_SEQ_NUM])  /* Request */
+    // pre-process msg-body
+    if (ptConnSession->wBdyLth) {
+        ptConnSession->bMap[CONTENTLENGTH_SEQ_NUM] = 1;
+        ptConnSession->tCntLength.wCntLength = ptConnSession->wBdyLth;
+    }
+    
+    
+    // request
+    if (ptConnSession->bMap[REQ_LINE_SEQ_NUM])
     {
         /* Method */
     	WriteString(&pbMsg, ptConnSession->tRequestLine.bMethod, METHOD_LTH);
@@ -634,6 +642,12 @@ BOOL8 P_ComEncode(BYTE *pbMsg, WORD *pwLth, CONN_SESSION *ptConnSession)
     
 	*pbMsg++ = '\r';
 	*pbMsg++ = '\n';
+	
+
+	// body part
+	if (ptConnSession->wBdyLth) {
+	    WriteString(&pbMsg, &ptConnSession->bBody[0], MAX_BODY_LTH);
+	}
 	
 	*pbMsg++ = '\0';
 	

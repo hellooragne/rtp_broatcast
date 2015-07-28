@@ -46,6 +46,7 @@ typedef enum
 #define COMMEN_LTH        64   /* used for acquire some memory. */
 #define METHOD_LTH        16   /* used by multi headers */
 #define HNAME_LTH         32   /* header name */
+#define MAX_BODY_LTH      1024 /* header name */
 
 /* host */
 #define  HOST_NAME_LTH    32
@@ -166,6 +167,7 @@ typedef enum {
     USERAGENT_SEQ_NUM,
     
     //UNKNOWNHEADER_SEQ_NUM = 0xf0,
+    
     MAX_SEQ_NUM,
 }SEQ_NUM;
 
@@ -176,7 +178,6 @@ typedef struct {
     // start-line
     REQUESTLINE         tRequestLine;
     STATUSLINE          tResponseLine;
-    
     
     // headers
     CALLID              tCallID;
@@ -189,6 +190,10 @@ typedef struct {
 /*
     //UNKNOWNHDR          tUnknownHdr;
 */
+    
+    // body
+    WORD                wBdyLth;
+    BYTE                bBody[MAX_BODY_LTH];
     
 }CONN_SESSION;
 
