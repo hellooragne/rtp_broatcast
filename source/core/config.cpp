@@ -15,7 +15,7 @@ INT32 load_config(global_confs_t *pConf, BOOL8 blReload)
     // init
     memset(pConf, 0, sizeof(*pConf));
 
-    if ( ( pFileCfg = fopen("/home/xliang2/workspace/wifi_cpp/wifi_d.conf","r") ) == NULL )
+    if ( ( pFileCfg = fopen("./wifi_d.conf","r") ) == NULL )
     {
         printf(" load_config() error : The file 'wifi_d.conf' could not opened \n");
     }
