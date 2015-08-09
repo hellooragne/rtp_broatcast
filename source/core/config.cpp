@@ -95,6 +95,10 @@ INT32 load_config(global_confs_t *pConf, BOOL8 blReload)
             strcpy( pConf->aMohNoConn, &chRecord[1][0]);
         } else if ( strcmp(&chRecord[0][0], "timer_keepalive") == 0 ) {
             pConf->u32KATimer = (UINT16)atoi(&chRecord[1][0]);
+            pConf->u32KATimer =  pConf->u32KATimer / 1000;
+            if (0 == pConf->u32KATimer) {
+                pConf->u32KATimer = 1;
+            }
         } else if ( strcmp(&chRecord[0][0], "timer_offline") == 0 ) {
             pConf->u32OfflineTimer = (UINT16)atoi(&chRecord[1][0]);
         } else {

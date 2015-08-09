@@ -460,11 +460,11 @@ BOOL8 P_ComDecode(BYTE *pbMsg, WORD wLth, CONN_SESSION *ptConnSession)
     		continue;
     	}
 
-    	/* unknown header * /
+    	/* unknown header */
     	else
     	{
+    	    return FALSE_B8;
     	}
-       	*/
 
     }
     pbMsg+=2;  /* "\r\n" */
@@ -495,6 +495,7 @@ BOOL8 P_ComDecode(BYTE *pbMsg, WORD wLth, CONN_SESSION *ptConnSession)
 BOOL8 P_ComEncode(BYTE *pbMsg, WORD *pwLth, CONN_SESSION *ptConnSession)
 {
     BYTE    bString[COMMEN_LTH];
+    BYTE   *pbStart = pbMsg;
 
     // pre-process msg-body
     if (ptConnSession->wBdyLth) {
@@ -650,6 +651,8 @@ BOOL8 P_ComEncode(BYTE *pbMsg, WORD *pwLth, CONN_SESSION *ptConnSession)
 	}
 	
 	*pbMsg++ = '\0';
+	
+	*pwLth = pbMsg - pbStart;
 	
     return TRUE_B8;
 }

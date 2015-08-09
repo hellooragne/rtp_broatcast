@@ -74,11 +74,9 @@ void  signal_callback(S_EV_L1L3_MESSAGE *pEv)
 {
     BOOL8   blResult;
     
-    printf("INFO recv ev.ip=[%d], ev.port=[%d], ev.len=[%d], ev.buf=%s\n", 
-        pEv->srcAddr.ip_addr, pEv->srcAddr.port, pEv->msgLen, pEv->msgBuf);
-    
     // time-tick event
     if (pEv->eType == eEV_TYPE_TIMER_TICK) {
+        //printf("INFO recv tick timer event \n");
         handle_req_time_tick();
         return;
     }
@@ -88,6 +86,9 @@ void  signal_callback(S_EV_L1L3_MESSAGE *pEv)
         return;
     }
     
+    printf("INFO recv signal msg: ev.ip=[%d], ev.port=[%d], ev.len=[%d], ev.buf=%s\n", 
+        pEv->srcAddr.ip_addr, pEv->srcAddr.port, pEv->msgLen, pEv->msgBuf);
+
     // dispatch signal message
     {
         CONN_SESSION   tSession;
@@ -129,7 +130,7 @@ void  signal_callback(S_EV_L1L3_MESSAGE *pEv)
                     if (blF) {
                         ptClient = &atClient[0];
                         if (ptClient->eState != eCLIENT_STATE_NONE) {
-                            printf("ERROR. there has already another F logged on system, must LOGOUT or RESET first.");
+                            printf("ERROR. there has already another F logged on system, must LOGOUT or RESET first.\n");
                             sendMgrResponse(&pEv->srcAddr, &tSession, 486, reinterpret_cast<const unsigned char *>("Busy. Already has one F here."));
                             return;
                         }
@@ -144,7 +145,7 @@ void  signal_callback(S_EV_L1L3_MESSAGE *pEv)
                     } else {
                         ptClient = getClient();
                         if (!ptClient) {
-                            printf("ERROR. System busy, there has no idle C-slot, please try LOGON later.");
+                            printf("ERROR. System busy, there has no idle C-slot, please try LOGON later.\n");
                             sendMgrResponse(&pEv->srcAddr, &tSession, 486, reinterpret_cast<const unsigned char *>("Busy. System C slots are full. try again later."));
                             return;
                         }
@@ -176,7 +177,7 @@ void  signal_callback(S_EV_L1L3_MESSAGE *pEv)
                     } else {
                     // NOT FOUND
                         // ignore. instance is already released.
-                        printf("WARNING. Instance of user[%s] is already released.", (char *)pName);
+                        printf("WARNING. Instance of user[%s] is already released.\n", (char *)pName);
                     }
                 }
                 break;
@@ -185,7 +186,7 @@ void  signal_callback(S_EV_L1L3_MESSAGE *pEv)
             case MSG_RQST_NOTIFY:
                 // mis-target request OR instance is already released!
                 sendMgrResponse(&pEv->srcAddr, &tSession, 404, reinterpret_cast<const unsigned char *>("Not found. The requested instance does not exist."));
-                printf("WARNING. Instance of request[%d] DOES NOT found.", tSession.eType);
+                printf("WARNING. Instance of request[%d] DOES NOT found.\n", tSession.eType);
                 return;
                 
                 break;
@@ -330,7 +331,7 @@ void sendResponse(IP_ADDR_PORT_V4 *ptDest, CONN_SESSION *ptResp, DWORD dwSCode, 
     WORD  wLen;
     BYTE *pbMsg;
 
-    printf("INFO. send response to client.");
+    printf("INFO. send response to client.\n");
 
     // status-line    
     ptResp->bMap[RESP_LINE_SEQ_NUM] = 1;
@@ -344,7 +345,7 @@ void sendResponse(IP_ADDR_PORT_V4 *ptDest, CONN_SESSION *ptResp, DWORD dwSCode, 
     // generate response string
     blResult = P_ComEncode(bStrResp, &wLen, ptResp);
     if (!blResult) {
-        printf("ERROR. response encoding error.");
+        printf("ERROR. response encoding error.\n");
         return;
     }
 
@@ -352,12 +353,13 @@ void sendResponse(IP_ADDR_PORT_V4 *ptDest, CONN_SESSION *ptResp, DWORD dwSCode, 
     
     tPeerAddr.sin_family = AF_INET;
     memcpy(&tPeerAddr.sin_addr.s_addr, &ptDest->ip_addr, 4);
-    tPeerAddr.sin_port = htons(ptDest->port);
+    //tPeerAddr.sin_port = htons(ptDest->port);
+    tPeerAddr.sin_port = ptDest->port;
 
     wReady = sendto(m_confs.u32SvrSockfd, bStrResp, wLen, 0, (struct sockaddr*)&tPeerAddr, sizeof(tPeerAddr));
     if(wReady != wLen)
     {
-        printf("ERROR. sendto() return:%d!", wReady);
+        printf("ERROR. sendto() return:%d!\n", wReady);
         return;
     }
 
@@ -376,7 +378,7 @@ void sendMgrResponse(IP_ADDR_PORT_V4 *ptDest, CONN_SESSION *ptReq, DWORD dwSCode
     CONN_SESSION  *ptResp;
     
 
-    printf("INFO. server manager send response to client.");
+    printf("INFO. server manager send response to client.\n");
 
     ptResp = ptReq;
     memset(&ptResp->bMap[0], 0, sizeof(ptResp->bMap));
@@ -398,7 +400,7 @@ void sendMgrResponse(IP_ADDR_PORT_V4 *ptDest, CONN_SESSION *ptReq, DWORD dwSCode
     // generate response string
     blResult = P_ComEncode(bStrResp, &wLen, ptResp);
     if (!blResult) {
-        printf("ERROR. response encoding error. ignore this response.");
+        printf("ERROR. response encoding error. ignore this response.\n");
         return;
     }
 
@@ -406,12 +408,13 @@ void sendMgrResponse(IP_ADDR_PORT_V4 *ptDest, CONN_SESSION *ptReq, DWORD dwSCode
     
     tPeerAddr.sin_family = AF_INET;
     memcpy(&tPeerAddr.sin_addr.s_addr, &ptDest->ip_addr, 4);
-    tPeerAddr.sin_port = htons(ptDest->port);
+    //tPeerAddr.sin_port = htons(ptDest->port);
+    tPeerAddr.sin_port = ptDest->port;
 
     wReady = sendto(m_confs.u32SvrSockfd, bStrResp, wLen, 0, (struct sockaddr*)&tPeerAddr, sizeof(tPeerAddr));
     if(wReady != wLen)
     {
-        printf("ERROR. sendto() return:%d!", wReady);
+        printf("ERROR. sendto() return:%d!\n", wReady);
         return;
     }
 
@@ -456,7 +459,7 @@ void dispatch_ev_toC(CLIENT_t *ptC, CONN_SESSION *ptSession)
         handle_request_NOTIFY(ptC, ptSession);
         break;
     default:
-        printf("ERROR. Unsupported request type...");
+        printf("ERROR. Unsupported request type...\n");
         return;
     }
 
@@ -478,20 +481,29 @@ void handle_req_time_tick()
         
         nDiffSecs = nSecs - atClient[i].n32TimeGotKA;
         if (nDiffSecs > m_confs.u32OfflineTimer) {
-            // release this client SCILENTLY...
-            freeClient(&atClient[i]);
-
+            printf("ERROR. reach offline-time[%d], release instance. \n", m_confs.u32OfflineTimer);
+            
             // delete... media-plane
             sdp_process_type_t eClientType = (0 == i) ? SDP_F : SDP_C;
             data_plane_del_sender(eClientType, atClient[i].tMedia);
             
+            // release this client SCILENTLY...
+            freeClient(&atClient[i]);
+
         } else if (nDiffSecs > nInactiveSecs) {
-            // inactive, NOTIFY media module t stop sending/recieving
-            atClient[i].eState = eCLIENT_STATE_INACTIVE;
+            if (eCLIENT_STATE_INACTIVE == atClient[i].eState) {
+                // already in-active
+                continue;
+            }
+            
+            printf("WARNING. reach MAX keep-alive timer[%d], stop media.\n", nInactiveSecs);
             
             // DELETE is good enought for this project.
             sdp_process_type_t eClientType = (0 == i) ? SDP_F : SDP_C;
             data_plane_del_sender(eClientType, atClient[i].tMedia);
+            
+            // inactive, NOTIFY media module t stop sending/recieving
+            atClient[i].eState = eCLIENT_STATE_INACTIVE;
             
         }
         
@@ -513,7 +525,7 @@ void handle_request_CONN(CLIENT_t *ptC, CONN_SESSION *ptSession)
     }
     if (ptC->tAddrRemoteMedia.ip_addr == INADDR_NONE)
     {
-        printf("ERROR. receive CONN request, but Media IP is invalid. Ignore request AND release instance...");
+        printf("ERROR. receive CONN request, but Media IP is invalid. Ignore request AND release instance...\n");
         
         freeClient(ptC);
         sendMgrResponse(&ptC->tAddrRemoteSignal, ptSession, 400, reinterpret_cast<const unsigned char *>("Media header error."));
@@ -594,7 +606,7 @@ void handle_request_reCONN(CLIENT_t *ptC, CONN_SESSION *ptSession)
     }
     if (u32IP == INADDR_NONE)
     {
-        printf("ERROR. receive re-CONN request, but Media IP is invalid. Ignore request...");
+        printf("ERROR. receive re-CONN request, but Media IP is invalid. Ignore request...\n");
         
         sendMgrResponse(&ptC->tAddrRemoteSignal, ptSession, 400, reinterpret_cast<const unsigned char *>("Media header error."));
         return;
@@ -669,25 +681,28 @@ void handle_request_DISCONN(CLIENT_t *ptC, CONN_SESSION *ptSession)
     // validation check
     // TODO...
     
-    freeClient(ptC);
-    
     // delete media-plane
     sdp_process_type_t eClientType = (ptC == &atClient[0]) ? SDP_F : SDP_C;
     data_plane_del_sender(eClientType, ptC->tMedia);
     
     sendMgrResponse(&ptC->tAddrRemoteSignal, ptSession, 200, reinterpret_cast<const unsigned char *>("OK"));
 
+    // free instance
+    freeClient(ptC);
+    
     return;
 }
 
 void handle_request_RESET(CLIENT_t *ptC, CONN_SESSION *ptSession)
 {
-    freeClient(ptC);
-    
     sdp_process_type_t eClientType = (ptC == &atClient[0]) ? SDP_F : SDP_C;
     data_plane_del_sender(eClientType, ptC->tMedia);
     
     sendMgrResponse(&ptC->tAddrRemoteSignal, ptSession, 200, reinterpret_cast<const unsigned char *>("OK. Instance is already released."));
+
+    // free instance
+    freeClient(ptC);
+    
     return;
 }
 
