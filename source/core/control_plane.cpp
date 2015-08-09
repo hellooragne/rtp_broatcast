@@ -86,7 +86,7 @@ void  signal_callback(S_EV_L1L3_MESSAGE *pEv)
         return;
     }
     
-    printf("INFO recv signal msg: ev.ip=[%d], ev.port=[%d], ev.len=[%d], ev.buf=%s\n", 
+    printf("INFO recv signal msg: ev.ip=[%d], ev.port=[%d], ev.len=[%d], ev.buf=\n%s\n", 
         pEv->srcAddr.ip_addr, pEv->srcAddr.port, pEv->msgLen, pEv->msgBuf);
 
     // dispatch signal message
@@ -715,20 +715,20 @@ void handle_request_NOTIFY(CLIENT_t *ptC, CONN_SESSION *ptSession)
     {
         // each NOTIFY message will be considered to KEEP-ALIVE message.
         ptC->n32TimeGotKA = time( (time_t *)NULL );
+        
+        // if state already inactive | x | x ..., then we need resume media plane.
+        if (ptC->eState == eCLIENT_STATE_INACTIVE) {
+            ptC->eState = eCLIENT_STATE_CONNECTED;
+            
+            // re-add media plane
+            sdp_process_type_t eClientType = (ptC == &atClient[0]) ? SDP_F : SDP_C;
+            //ptC->tMedia = data_plane_add_sender(eClientType, ptC->tAddrRemoteMedia.ip_addr, ptC->tAddrRemoteMedia.port);
+            data_plane_add_sender(eClientType, ptC->tAddrRemoteMedia.ip_addr, ptC->tAddrRemoteMedia.port);
+            
+        }
+            
+        // keep-alive NOTIFY. simply break-out.
         if (0 == ptSession->bMap[EVENT_SEQ_NUM]) {
-            // keep-alive NOTIFY.
-            
-            // if state already inactive | x | x ..., then we need resume media plane.
-            if (ptC->eState == eCLIENT_STATE_INACTIVE) {
-                ptC->eState = eCLIENT_STATE_CONNECTED;
-                
-                // re-add media plane
-                sdp_process_type_t eClientType = (ptC == &atClient[0]) ? SDP_F : SDP_C;
-                //ptC->tMedia = data_plane_add_sender(eClientType, ptC->tAddrRemoteMedia.ip_addr, ptC->tAddrRemoteMedia.port);
-                data_plane_add_sender(eClientType, ptC->tAddrRemoteMedia.ip_addr, ptC->tAddrRemoteMedia.port);
-                
-            }
-            
             break;
         }
         
