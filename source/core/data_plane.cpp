@@ -166,7 +166,23 @@ static void *data_plane_send_hint_run_thread(void *arg) {
 }
 
 static void *data_plane_switch_data_run_thread(void *arg) {
+	while (1) {
+		pthread_spin_lock(&media_map_lock);
+		if (data_plane_f_map.size() != 0) {
+			if (data_plane_c_map.size() != 0) {
+				map<uint64_t, data_plane_media_sdp_t>::iterator it = data_plane_f_map.begin();
+				while (it != data_plane_f_map.end()) {
+					pthread_spin_unlock(&media_map_lock);
 
+						//int len = udp_interface_data_read(int fd, string &out_data);
+
+					pthread_spin_lock(&media_map_lock);
+					++it;
+				}
+			}
+		}
+		pthread_spin_unlock(&media_map_lock);
+	}
 }
 
 int data_plane_run() {
@@ -177,6 +193,12 @@ int data_plane_run() {
 	int err = pthread_create(&tid, NULL, &data_plane_send_hint_run_thread, NULL);
 	if (err != 0) {
 		printf("\ncan't create thread :[%s]", strerror(err));
+	}
+
+	pthread_t tid2;
+	int err2 = pthread_create(&tid2, NULL, &data_plane_switch_data_run_thread, NULL);
+	if (err2 != 0) {
+		printf("\ncan't create thread :[%s]", strerror(err2));
 	}
 }
 

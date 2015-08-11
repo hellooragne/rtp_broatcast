@@ -57,6 +57,7 @@ int rtp_process_set_head(rtp_process_t *rtp_process_context, uint8_t *data, uint
 
 void rtp_process_send(rtp_process_t *rtp_process_context, uint8_t *data, uint32_t len) {
 	uint8_t out[2000];
+	rtp_process_set_seq(rtp_process_context);
 	rtp_process_set_head(rtp_process_context, out, sizeof(out));
 	if (len < (sizeof(out) - sizeof(rtp_header))) {
 		memcpy(out + sizeof(rtp_header), data, len);

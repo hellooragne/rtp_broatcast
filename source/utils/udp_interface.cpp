@@ -177,7 +177,7 @@ int udp_interface_data_read(int fd, string &out_data) {
 	FD_SET(fd, &fds);
 
 	tv.tv_sec  = 0;
-	tv.tv_usec = 0;
+	tv.tv_usec = 100;
 	char tmp[RCV_BUF_SIZE];
 	switch (select(FD_SETSIZE, &fds, NULL, NULL, &tv)) {
 		case -1:    /* errno == EINTR : unblocked signal */
