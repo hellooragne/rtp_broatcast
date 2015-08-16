@@ -21,6 +21,7 @@
 
 typedef struct {
 	uint64_t key;
+	int fd;
 	in_addr_t s_addr;	
 	in_addr_t d_addr;	
 	uint16_t s_port;		

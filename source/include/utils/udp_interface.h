@@ -32,9 +32,13 @@ typedef int (*udp_ind_callback)(uint8_t* ip, uint16_t len, uint8_t* data);
 
 int udp_interface_init(int port, udp_ind_callback udp_ind);
 int32_t udp_interface_init(uint32_t port);
+
+struct sockaddr_in udp_get_addr(int32_t sock);
+
 int udp_interface_send(int32_t sockfd, in_addr_t ip, uint16_t port, 
         uint8_t* data, uint32_t len);
 int udp_interface_read();
+
 int udp_interface_data_read(int fd, string &out_data);
 void udp_interface_destory(int udp_sock_fd);
 #endif

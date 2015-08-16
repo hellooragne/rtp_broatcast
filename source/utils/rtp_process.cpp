@@ -31,6 +31,8 @@ void rtp_prcess_init() {
 	rtp_header.ssrc = 0;
 
 	rtp_socket_fd = udp_interface_init(0);
+
+	udp_get_addr(rtp_socket_fd);
 	if (rtp_socket_fd <= 0) {
 		printf("rtp socket init error\n");
 	}

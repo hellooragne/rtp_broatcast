@@ -51,12 +51,16 @@ int udp_interface_init(int port, udp_ind_callback udp_ind) {
 	addr.sin_addr.s_addr = htonl(INADDR_ANY);
 	addr.sin_port = htons(port);
 
+	
 	if(bind(fd , (struct sockaddr *)(&addr), sizeof(addr)) < 0) {
 		printf("Can't Bind(socket_agent)\n");
 		//perror("Err socket_agent:");
 		close(fd);
 		return -1;
 	}
+
+	printf("\nafter bind port %d\n", addr.sin_port);
+
 	udp_context[fd] = udp_ind;
 	//udp_ind_cb = udp_ind;
 	return fd;
@@ -85,7 +89,20 @@ int32_t udp_interface_init(uint32_t port) {
 		close(fd);
 		return -1;
 	}
+
+	printf("\nafter bind port %d\n", addr.sin_port);
 	return fd;
+}
+
+struct sockaddr_in udp_get_addr(int32_t sock) {
+	struct sockaddr_in sin;
+	socklen_t len = sizeof(sin);
+	if (getsockname(sock, (struct sockaddr *)&sin, &len) == -1) {
+		perror("getsockname");
+	} else {
+		printf("port number %d\n", ntohs(sin.sin_port));
+		return sin;
+	}
 }
 
 

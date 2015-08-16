@@ -6,6 +6,7 @@
 #include "data_plane.h"
 #include "media_file.h"
 #include "rtp_process.h"
+#include "udp_interface.h"
 
 using namespace std;
 
@@ -50,6 +51,14 @@ const data_plane_media_sdp_t data_plane_add_sender(sdp_process_type_t sdp_type, 
 	if (sdp_type == SDP_F) {
 
 		data_plane_media_sdp_t media_sdp;
+
+		media_sdp.fd =  udp_interface_init(0);
+
+		struct sockaddr_in s_addr = udp_get_addr(media_sdp.fd);
+
+
+		media_sdp.s_addr = s_addr.sin_addr.s_addr;
+		media_sdp.s_port = s_addr.sin_port;
 		media_sdp.d_addr = d_addr;
 		media_sdp.d_port = d_port;
 
@@ -88,6 +97,11 @@ int data_plane_del_sender(sdp_process_type_t sdp_type, const data_plane_media_sd
 	pthread_spin_unlock(&media_map_lock);
 }
 
+
+int data_plane_suspend(sdp_process_type_t sdp_type, const data_plane_media_sdp_t media_sdp, bool is_suspend) {
+
+}
+
 static void send_hint_sound(data_plane_media_sdp_t sdp) {
 	struct  timeval time_start;
 	gettimeofday(&time_start, NULL);
@@ -102,7 +116,6 @@ static void send_hint_sound(data_plane_media_sdp_t sdp) {
 		if ((time_now.tv_sec * 1000000 + time_now.tv_usec) >= (20000 + (time_start.tv_sec * 1000000 + time_start.tv_usec))) {
 			if (i * 160 <= media_file_len) {
 				rtp_process_send(&rtp_process_tmp, media_index + 160 * i, 160);
-				//rtp_process_send(&rtp_process_tmp, (uint8_t *)"12345678", 8);
 			} else {
 				return;
 			}
@@ -174,8 +187,21 @@ static void *data_plane_switch_data_run_thread(void *arg) {
 				while (it != data_plane_f_map.end()) {
 					pthread_spin_unlock(&media_map_lock);
 
-						//int len = udp_interface_data_read(int fd, string &out_data);
+					string out_data;
+					int len = udp_interface_data_read(it->second.fd, out_data);
 
+					//send to c
+
+					map<uint64_t, data_plane_media_sdp_t>::iterator it_c = data_plane_c_map.begin();
+
+					while (it_c != data_plane_c_map.end()) {
+
+						//int udp_interface_send(int32_t sockfd, in_addr_t ip, uint16_t port, uint8_t* data, uint32_t len)
+
+						++it_c;
+					}
+
+					
 					pthread_spin_lock(&media_map_lock);
 					++it;
 				}
