@@ -30,6 +30,8 @@ int rtp_process_set_head(rtp_process_t *rtp_process_context, uint8_t *data, uint
 
 void rtp_process_send(rtp_process_t *rtp_process_context, uint8_t *data, uint32_t len);
 
+void rtp_process_send(int fd, rtp_process_t *rtp_process_context, uint8_t *data, uint32_t len);
+
 void rtp_porcess_context_destory(rtp_process_t *rtp_process_context);
 
 void rtp_porcess_destory();

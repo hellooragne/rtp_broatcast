@@ -5,7 +5,6 @@
 
 #include "data_plane.h"
 #include "media_file.h"
-#include "rtp_process.h"
 #include "udp_interface.h"
 
 using namespace std;
@@ -53,14 +52,16 @@ const data_plane_media_sdp_t data_plane_add_sender(sdp_process_type_t sdp_type, 
 		data_plane_media_sdp_t media_sdp;
 
 		media_sdp.fd =  udp_interface_init(0);
-
 		struct sockaddr_in s_addr = udp_get_addr(media_sdp.fd);
-
 
 		media_sdp.s_addr = s_addr.sin_addr.s_addr;
 		media_sdp.s_port = s_addr.sin_port;
 		media_sdp.d_addr = d_addr;
 		media_sdp.d_port = d_port;
+
+		media_sdp.is_suspend = SUSPEND_OFF;
+
+		rtp_process_context_init(&(media_sdp.rtp_process_context), media_sdp.d_addr, media_sdp.d_port);
 
 		pthread_spin_lock(&media_map_lock);
 		data_plane_f_map[key] = media_sdp;
@@ -71,8 +72,17 @@ const data_plane_media_sdp_t data_plane_add_sender(sdp_process_type_t sdp_type, 
 	} else if (sdp_type == SDP_C) {
 
 		data_plane_media_sdp_t media_sdp;
+
+		media_sdp.fd =  udp_interface_init(0);
+		struct sockaddr_in s_addr = udp_get_addr(media_sdp.fd);
+
+		media_sdp.s_addr = s_addr.sin_addr.s_addr;
+		media_sdp.s_port = s_addr.sin_port;
+
 		media_sdp.d_addr = d_addr;
 		media_sdp.d_port = d_port;
+
+		media_sdp.is_suspend = SUSPEND_OFF;
 
 		pthread_spin_lock(&media_map_lock);
 		data_plane_c_map[key] = media_sdp;
@@ -98,24 +108,38 @@ int data_plane_del_sender(sdp_process_type_t sdp_type, const data_plane_media_sd
 }
 
 
-int data_plane_suspend(sdp_process_type_t sdp_type, const data_plane_media_sdp_t media_sdp, bool is_suspend) {
+int data_plane_suspend(sdp_process_type_t sdp_type, const data_plane_media_sdp_t media_sdp, suspend_type_t is_suspend) {
 
+	pthread_spin_lock(&media_map_lock);
+
+	if (sdp_type == SDP_F) {
+
+		data_plane_f_map[media_sdp.key].is_suspend = is_suspend;
+
+	} else if (sdp_type == SDP_C) {
+
+		data_plane_c_map[media_sdp.key].is_suspend = is_suspend;
+	}
+
+	pthread_spin_unlock(&media_map_lock);
 }
 
-static void send_hint_sound(data_plane_media_sdp_t sdp) {
+static void send_hint_sound(data_plane_media_sdp_t *sdp) {
 	struct  timeval time_start;
 	gettimeofday(&time_start, NULL);
 	uint8_t *media_index = media_file_buf;
-	rtp_process_t rtp_process_tmp;
+	if (sdp->is_suspend == SUSPEND_ON) {
+		return;
+	}
+
 	int i = 0;
 
-	rtp_process_context_init(&rtp_process_tmp, sdp.d_addr, sdp.d_port);
 	while (1) {
 		struct  timeval time_now;
 		gettimeofday(&time_now, NULL);
 		if ((time_now.tv_sec * 1000000 + time_now.tv_usec) >= (20000 + (time_start.tv_sec * 1000000 + time_start.tv_usec))) {
 			if (i * 160 <= media_file_len) {
-				rtp_process_send(&rtp_process_tmp, media_index + 160 * i, 160);
+				rtp_process_send(sdp->fd, &(sdp->rtp_process_context), media_index + 160 * i, 160);
 			} else {
 				return;
 			}
@@ -160,7 +184,7 @@ static void *data_plane_send_hint_run_thread(void *arg) {
 				map<uint64_t, data_plane_media_sdp_t>::iterator it = data_plane_f_map.begin();
 				while (it != data_plane_f_map.end()) {
 					pthread_spin_unlock(&media_map_lock);
-					send_hint_sound(it->second);
+					send_hint_sound(&(it->second));
 					pthread_spin_lock(&media_map_lock);
 					++it;
 				}
@@ -196,7 +220,7 @@ static void *data_plane_switch_data_run_thread(void *arg) {
 
 					while (it_c != data_plane_c_map.end()) {
 
-						//int udp_interface_send(int32_t sockfd, in_addr_t ip, uint16_t port, uint8_t* data, uint32_t len)
+						udp_interface_send(it_c->second.fd, it_c->second.d_addr, it_c->second.d_port, (uint8_t *)out_data.c_str(), out_data.length());
 
 						++it_c;
 					}
@@ -231,7 +255,7 @@ int data_plane_run() {
 /********************************************************************************/
 int data_plane_test() {
 	data_plane_init(2000, 3000, "./sound/1.wav");
-	data_plane_media_sdp_t data_media_sdp = data_plane_add_sender(SDP_F, inet_addr("192.168.1.103"), 88);
+	data_plane_media_sdp_t data_media_sdp = data_plane_add_sender(SDP_F, inet_addr("192.168.1.100"), 88);
 	data_plane_run();
 	while (1) {
 		sleep(1);

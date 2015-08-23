@@ -52,9 +52,33 @@ int rtp_process_set_seq(rtp_process_t *rtp_process_context) {
 }
 
 int rtp_process_set_head(rtp_process_t *rtp_process_context, uint8_t *data, uint32_t len) {
+	rtp_hdr_t rtp_header_tmp;
+	rtp_header_tmp.version = 2;
+	rtp_header_tmp.p  = 0;
+	rtp_header_tmp.x  = 0;
+	rtp_header_tmp.cc = 0;
+	rtp_header_tmp.m  = 0;
+	rtp_header_tmp.pt = 0;
+	rtp_header_tmp.seq = rtp_process_context->seq;
+	rtp_header_tmp.ts = 0;
+	rtp_header_tmp.ssrc = 0;
 
-	memcpy(data, (const void *)&rtp_header, sizeof(rtp_header));
-	return sizeof(rtp_header);
+	printf("rtp seq %d\n", rtp_header_tmp.seq);
+
+	memcpy(data, (const void *)&rtp_header_tmp, sizeof(rtp_header_tmp));
+	return sizeof(rtp_header_tmp);
+}
+
+void rtp_process_send(int fd, rtp_process_t *rtp_process_context, uint8_t *data, uint32_t len) {
+	uint8_t out[2000];
+	rtp_process_set_seq(rtp_process_context);
+	rtp_process_set_head(rtp_process_context, out, sizeof(out));
+	if (len < (sizeof(out) - sizeof(rtp_header))) {
+		memcpy(out + sizeof(rtp_header), data, len);
+		udp_interface_send(fd, rtp_process_context->ip, rtp_process_context->port, out, len + sizeof(rtp_header));
+	} else {
+
+	}
 }
 
 void rtp_process_send(rtp_process_t *rtp_process_context, uint8_t *data, uint32_t len) {
