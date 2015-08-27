@@ -63,7 +63,7 @@ int rtp_process_set_head(rtp_process_t *rtp_process_context, uint8_t *data, uint
 	rtp_header_tmp.ts = 0;
 	rtp_header_tmp.ssrc = 0;
 
-	printf("rtp seq %d\n", rtp_header_tmp.seq);
+	//printf("rtp seq %d\n", rtp_header_tmp.seq);
 
 	memcpy(data, (const void *)&rtp_header_tmp, sizeof(rtp_header_tmp));
 	return sizeof(rtp_header_tmp);

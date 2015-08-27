@@ -47,6 +47,8 @@ const data_plane_media_sdp_t data_plane_add_sender(sdp_process_type_t sdp_type, 
 	gettimeofday(&time_now, NULL);
 	uint64_t key = time_now.tv_sec * 1000000 + time_now.tv_usec;
 
+	//printf("add key %lu\n", key);
+
 	if (sdp_type == SDP_F) {
 
 		data_plane_media_sdp_t media_sdp;
@@ -95,6 +97,8 @@ int data_plane_del_sender(sdp_process_type_t sdp_type, const data_plane_media_sd
 
 	pthread_spin_lock(&media_map_lock);
 
+	printf("del key %llu\n", media_sdp.key);
+
 	if (sdp_type == SDP_F) {
 
 		data_plane_f_map.erase(media_sdp.key);
@@ -112,13 +116,16 @@ int data_plane_suspend(sdp_process_type_t sdp_type, const data_plane_media_sdp_t
 
 	pthread_spin_lock(&media_map_lock);
 
+	//printf("suspend key %llu\n", media_sdp.key);
+
 	if (sdp_type == SDP_F) {
-
-		data_plane_f_map[media_sdp.key].is_suspend = is_suspend;
-
+		if (data_plane_f_map.end() != data_plane_f_map.find(media_sdp.key)) {
+			data_plane_f_map[media_sdp.key].is_suspend = is_suspend;
+		}
 	} else if (sdp_type == SDP_C) {
-
-		data_plane_c_map[media_sdp.key].is_suspend = is_suspend;
+		if (data_plane_c_map.end() != data_plane_c_map.find(media_sdp.key)) {
+			data_plane_c_map[media_sdp.key].is_suspend = is_suspend;
+		}
 	}
 
 	pthread_spin_unlock(&media_map_lock);
@@ -213,7 +220,7 @@ static void *data_plane_switch_data_run_thread(void *arg) {
 
 					string out_data;
 					int len = udp_interface_data_read(it->second.fd, out_data);
-
+					pthread_spin_lock(&media_map_lock);
 					//send to c
 
 					map<uint64_t, data_plane_media_sdp_t>::iterator it_c = data_plane_c_map.begin();
@@ -226,7 +233,6 @@ static void *data_plane_switch_data_run_thread(void *arg) {
 					}
 
 					
-					pthread_spin_lock(&media_map_lock);
 					++it;
 				}
 			}
