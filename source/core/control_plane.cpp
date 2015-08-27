@@ -498,9 +498,10 @@ void handle_req_time_tick()
             
             printf("WARNING. reach MAX keep-alive timer[%d], stop media.\n", nInactiveSecs);
             
-            // DELETE is good enought for this project.
+            // inactive state, suspend media.
             sdp_process_type_t eClientType = (0 == i) ? SDP_F : SDP_C;
-            data_plane_del_sender(eClientType, atClient[i].tMedia);
+            data_plane_suspend(eClientType, atClient[i].tMedia, SUSPEND_ON);
+            
             
             // inactive, NOTIFY media module t stop sending/recieving
             atClient[i].eState = eCLIENT_STATE_INACTIVE;
@@ -720,10 +721,9 @@ void handle_request_NOTIFY(CLIENT_t *ptC, CONN_SESSION *ptSession)
         if (ptC->eState == eCLIENT_STATE_INACTIVE) {
             ptC->eState = eCLIENT_STATE_CONNECTED;
             
-            // re-add media plane
+            // resume media plane
             sdp_process_type_t eClientType = (ptC == &atClient[0]) ? SDP_F : SDP_C;
-            //ptC->tMedia = data_plane_add_sender(eClientType, ptC->tAddrRemoteMedia.ip_addr, ptC->tAddrRemoteMedia.port);
-            data_plane_add_sender(eClientType, ptC->tAddrRemoteMedia.ip_addr, ptC->tAddrRemoteMedia.port);
+            data_plane_suspend(eClientType, ptC->tMedia, SUSPEND_OFF);
             
         }
             
