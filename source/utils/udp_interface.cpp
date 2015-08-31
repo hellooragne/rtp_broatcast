@@ -59,7 +59,7 @@ int udp_interface_init(int port, udp_ind_callback udp_ind) {
 		return -1;
 	}
 
-	printf("\nafter bind port %d\n", addr.sin_port);
+	//printf("\nafter bind port %d\n", addr.sin_port);
 
 	udp_context[fd] = udp_ind;
 	//udp_ind_cb = udp_ind;
@@ -90,7 +90,7 @@ int32_t udp_interface_init(uint32_t port) {
 		return -1;
 	}
 
-	printf("\nafter bind port %d\n", addr.sin_port);
+	//printf("\nafter bind port %d\n", addr.sin_port);
 	return fd;
 }
 

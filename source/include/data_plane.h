@@ -17,6 +17,8 @@
 
 #include "rtp_process.h"
 
+#include "config.h"
+
 /**
  *
  */
@@ -47,7 +49,7 @@ typedef enum {
  * rtp_port_end:   rtp port range
  */
 
-int data_plane_init(uint32_t rtp_port_start, uint32_t rtp_port_end, const char *filename);
+int data_plane_init(global_confs_t global_confs);
 
 const data_plane_media_sdp_t data_plane_add_sender(sdp_process_type_t sdp_type, in_addr_t d_addr, uint16_t d_port);
 

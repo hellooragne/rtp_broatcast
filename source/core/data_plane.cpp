@@ -23,14 +23,14 @@ static map <uint64_t, data_plane_media_sdp_t> data_plane_c_map;
 static uint8_t *media_file_buf;
 static int      media_file_len; 
 
+static global_confs_t data_global_confs;
+
 static pthread_spinlock_t media_map_lock = 0;
 
-int data_plane_init(uint32_t rtp_port_start, uint32_t rtp_port_end, const char *filename) {
+int data_plane_init(global_confs_t global_confs) {
 	pthread_spin_init(&media_map_lock, PTHREAD_PROCESS_SHARED);
-	data_plane_port_range.port_start = rtp_port_start;
-	data_plane_port_range.port_end = rtp_port_end;
 	SF_INFO sf_info;
-	SNDFILE *fd = media_file_open(filename, sf_info);
+	SNDFILE *fd = media_file_open(global_confs.aMohNoConn, sf_info);
 	if (fd != NULL) {
 		media_file_buf = NULL;
 		media_file_buf = (uint8_t *)malloc(sf_info.frames);
@@ -40,6 +40,8 @@ int data_plane_init(uint32_t rtp_port_start, uint32_t rtp_port_end, const char *
 	} else {
 		printf("can not open file\n");
 	}
+
+	data_global_confs = global_confs;
 }
 
 const data_plane_media_sdp_t data_plane_add_sender(sdp_process_type_t sdp_type, in_addr_t d_addr, uint16_t d_port) {
@@ -56,7 +58,7 @@ const data_plane_media_sdp_t data_plane_add_sender(sdp_process_type_t sdp_type, 
 		media_sdp.fd =  udp_interface_init(0);
 		struct sockaddr_in s_addr = udp_get_addr(media_sdp.fd);
 
-		media_sdp.s_addr = s_addr.sin_addr.s_addr;
+		media_sdp.s_addr = inet_addr(data_global_confs.media_ip);
 		media_sdp.s_port = s_addr.sin_port;
 		media_sdp.d_addr = d_addr;
 		media_sdp.d_port = d_port;
@@ -78,7 +80,7 @@ const data_plane_media_sdp_t data_plane_add_sender(sdp_process_type_t sdp_type, 
 		media_sdp.fd =  udp_interface_init(0);
 		struct sockaddr_in s_addr = udp_get_addr(media_sdp.fd);
 
-		media_sdp.s_addr = s_addr.sin_addr.s_addr;
+		media_sdp.s_addr = inet_addr(data_global_confs.media_ip);
 		media_sdp.s_port = s_addr.sin_port;
 
 		media_sdp.d_addr = d_addr;
@@ -161,30 +163,6 @@ static void *data_plane_send_hint_run_thread(void *arg) {
 	gettimeofday(&time_start, NULL);
 
 	while (1) {
-		/*
-		struct  timeval time_now;
-		gettimeofday(&time_now, NULL);
-
-		if ((time_now.tv_sec * 1000000 + time_now.tv_usec) >= (2000000 + (time_start.tv_sec * 1000000 + time_start.tv_usec))) {
-			if (data_plane_f_map.size() != 0) {
-				if (data_plane_c_map.size() == 0) {
-					map<uint64_t, data_plane_media_sdp_t>::iterator it = data_plane_f_map.begin();
-					while (it != data_plane_f_map.end()) {
-						send_hint_sound(it->second);
-						++it;
-					}
-				}
-			}
-
-			if (data_plane_c_map.size() != 0) {
-				if (data_plane_f_map.size() == 0) {
-
-				}
-			}
-			gettimeofday(&time_start, NULL);
-		}
-		*/
-
 		pthread_spin_lock(&media_map_lock);
 		if (data_plane_f_map.size() != 0) {
 			if (data_plane_c_map.size() == 0) {
@@ -260,8 +238,13 @@ int data_plane_run() {
 
 /********************************************************************************/
 int data_plane_test() {
-	data_plane_init(2000, 3000, "./sound/1.wav");
+	global_confs_t global_confs;
+    load_config(&global_confs, FALSE_B8);
+	data_plane_init(global_confs);
 	data_plane_media_sdp_t data_media_sdp = data_plane_add_sender(SDP_F, inet_addr("192.168.1.100"), 88);
+	struct in_addr in;
+	in.s_addr = data_media_sdp.s_addr;
+	printf("get server ip %s\n", inet_ntoa(in));
 	data_plane_run();
 	while (1) {
 		sleep(1);

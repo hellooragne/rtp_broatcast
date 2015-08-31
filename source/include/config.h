@@ -15,6 +15,7 @@ typedef struct {
     UINT32   u32KATimer;      // keep-alive (ms)
     UINT32   u32OfflineTimer;  // offline timer (s)
     
+	char     media_ip[128];
 }global_confs_t;
 
 INT32 load_config(global_confs_t *, BOOL8);
