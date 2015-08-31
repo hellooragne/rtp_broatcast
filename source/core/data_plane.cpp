@@ -59,11 +59,17 @@ const data_plane_media_sdp_t data_plane_add_sender(sdp_process_type_t sdp_type, 
 		struct sockaddr_in s_addr = udp_get_addr(media_sdp.fd);
 
 		media_sdp.s_addr = inet_addr(data_global_confs.media_ip);
-		media_sdp.s_port = s_addr.sin_port;
+		media_sdp.s_port = ntohs(s_addr.sin_port);
 		media_sdp.d_addr = d_addr;
 		media_sdp.d_port = d_port;
 
 		media_sdp.is_suspend = SUSPEND_OFF;
+
+		printf("[%s +%d] add [f] key [%llu] src [%s:%d] dst [%s:%d]\n",
+				__FILE__, __LINE__,
+				key,
+				inet_ntoa(*(struct in_addr *)&media_sdp.s_addr), media_sdp.s_port, 
+				inet_ntoa(*(struct in_addr *)&media_sdp.d_addr), media_sdp.d_port);
 
 		rtp_process_context_init(&(media_sdp.rtp_process_context), media_sdp.d_addr, media_sdp.d_port);
 
@@ -81,10 +87,16 @@ const data_plane_media_sdp_t data_plane_add_sender(sdp_process_type_t sdp_type, 
 		struct sockaddr_in s_addr = udp_get_addr(media_sdp.fd);
 
 		media_sdp.s_addr = inet_addr(data_global_confs.media_ip);
-		media_sdp.s_port = s_addr.sin_port;
+		media_sdp.s_port = ntohs(s_addr.sin_port);
 
 		media_sdp.d_addr = d_addr;
 		media_sdp.d_port = d_port;
+
+		printf("[%s +%d] add [c] key [%llu] src [%s:%d] dst [%s:%d]\n", 
+				__FILE__, __LINE__,
+				key,
+				inet_ntoa(*(struct in_addr *)&media_sdp.s_addr), media_sdp.s_port, 
+				inet_ntoa(*(struct in_addr *)&media_sdp.d_addr), media_sdp.d_port);
 
 		media_sdp.is_suspend = SUSPEND_OFF;
 
@@ -99,7 +111,7 @@ int data_plane_del_sender(sdp_process_type_t sdp_type, const data_plane_media_sd
 
 	pthread_spin_lock(&media_map_lock);
 
-	printf("del key %llu\n", media_sdp.key);
+	printf("[%s +%d] del key [%llu]\n", __FILE__, __LINE__, media_sdp.key);
 
 	if (sdp_type == SDP_F) {
 
@@ -118,7 +130,7 @@ int data_plane_suspend(sdp_process_type_t sdp_type, const data_plane_media_sdp_t
 
 	pthread_spin_lock(&media_map_lock);
 
-	//printf("suspend key %llu\n", media_sdp.key);
+	printf("[%s +%d] suspend key [%llu]\n", __FILE__, __LINE__, media_sdp.key);
 
 	if (sdp_type == SDP_F) {
 		if (data_plane_f_map.end() != data_plane_f_map.find(media_sdp.key)) {
@@ -241,10 +253,14 @@ int data_plane_test() {
 	global_confs_t global_confs;
     load_config(&global_confs, FALSE_B8);
 	data_plane_init(global_confs);
-	data_plane_media_sdp_t data_media_sdp = data_plane_add_sender(SDP_F, inet_addr("192.168.1.100"), 88);
-	struct in_addr in;
-	in.s_addr = data_media_sdp.s_addr;
-	printf("get server ip %s\n", inet_ntoa(in));
+
+	data_plane_media_sdp_t data_media_sdp_f = data_plane_add_sender(SDP_F, inet_addr("192.168.1.100"), 88);
+	printf("test: get server ip %s\n", inet_ntoa(*(struct in_addr *)&data_media_sdp_f.s_addr));
+
+
+	data_plane_media_sdp_t data_media_sdp_c = data_plane_add_sender(SDP_C, inet_addr("10.32.27.12"), 88);
+	printf("test: get server ip %s\n", inet_ntoa(*(struct in_addr *)&data_media_sdp_c.s_addr));
+
 	data_plane_run();
 	while (1) {
 		sleep(1);

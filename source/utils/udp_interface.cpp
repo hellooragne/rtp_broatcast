@@ -90,7 +90,7 @@ int32_t udp_interface_init(uint32_t port) {
 		return -1;
 	}
 
-	//printf("\nafter bind port %d\n", addr.sin_port);
+	//printf("after bind port %d\n", addr.sin_port);
 	return fd;
 }
 
@@ -100,7 +100,7 @@ struct sockaddr_in udp_get_addr(int32_t sock) {
 	if (getsockname(sock, (struct sockaddr *)&sin, &len) == -1) {
 		perror("getsockname");
 	} else {
-		printf("port number %d\n", ntohs(sin.sin_port));
+		//printf("port number %d\n", ntohs(sin.sin_port));
 		return sin;
 	}
 }
