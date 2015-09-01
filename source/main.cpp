@@ -33,7 +33,8 @@ int main() {
     
     // init media plane
     //data_plane_test();
-    data_plane_init(2000, 3000, "./sound/1.wav");
+    //data_plane_init(global_confs, 2000, 3000, "./sound/1.wav");
+    data_plane_init(global_confs);
     data_plane_run();
     
     
