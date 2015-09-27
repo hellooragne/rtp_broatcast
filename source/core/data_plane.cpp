@@ -190,6 +190,13 @@ static void *data_plane_send_hint_run_thread(void *arg) {
 
 		if (data_plane_c_map.size() != 0) {
 			if (data_plane_f_map.size() == 0) {
+				map<uint64_t, data_plane_media_sdp_t>::iterator it = data_plane_c_map.begin();
+				while (it != data_plane_c_map.end()) {
+					pthread_spin_unlock(&media_map_lock);
+					send_hint_sound(&(it->second));
+					pthread_spin_lock(&media_map_lock);
+					++it;
+				}
 
 			}
 		}
