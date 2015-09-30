@@ -125,8 +125,9 @@ typedef struct {
 
 /* From */
 typedef struct {
-	BYTE       bMap[1];
+	BYTE       bMap[2];
 	BYTE       bName[USER_LTH];
+	BYTE       bID[USER_LTH];
 }FROM;
 
 /* Media */

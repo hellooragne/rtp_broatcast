@@ -29,7 +29,7 @@ typedef enum {
 } suspend_type_t;
 
 typedef struct {
-	uint64_t key;
+	int64_t key;
 	int fd;
 	in_addr_t s_addr;	
 	in_addr_t d_addr;	

@@ -17,8 +17,8 @@ typedef struct {
 
 static data_plane_port_range_t data_plane_port_range;
 
-static map <uint64_t, data_plane_media_sdp_t> data_plane_f_map;
-static map <uint64_t, data_plane_media_sdp_t> data_plane_c_map;
+static map <int64_t, data_plane_media_sdp_t> data_plane_f_map;
+static map <int64_t, data_plane_media_sdp_t> data_plane_c_map;
 
 static uint8_t *media_file_buf;
 static int      media_file_len; 
@@ -47,7 +47,7 @@ int data_plane_init(global_confs_t global_confs) {
 const data_plane_media_sdp_t data_plane_add_sender(sdp_process_type_t sdp_type, in_addr_t d_addr, uint16_t d_port) {
 	struct  timeval time_now;
 	gettimeofday(&time_now, NULL);
-	uint64_t key = time_now.tv_sec * 1000000 + time_now.tv_usec;
+	int64_t key = time_now.tv_sec * 1000000 + time_now.tv_usec;
 
 	//printf("add key %lu\n", key);
 
@@ -62,6 +62,7 @@ const data_plane_media_sdp_t data_plane_add_sender(sdp_process_type_t sdp_type, 
 		media_sdp.s_port = ntohs(s_addr.sin_port);
 		media_sdp.d_addr = d_addr;
 		media_sdp.d_port = d_port;
+		media_sdp.key    = key;
 
 		media_sdp.is_suspend = SUSPEND_OFF;
 
@@ -74,7 +75,9 @@ const data_plane_media_sdp_t data_plane_add_sender(sdp_process_type_t sdp_type, 
 		rtp_process_context_init(&(media_sdp.rtp_process_context), media_sdp.d_addr, media_sdp.d_port);
 
 		pthread_spin_lock(&media_map_lock);
-		data_plane_f_map[key] = media_sdp;
+
+		data_plane_f_map.insert(make_pair(key, media_sdp));
+		//data_plane_f_map[key] = media_sdp;
 		pthread_spin_unlock(&media_map_lock);
 
 		return media_sdp;
@@ -91,7 +94,7 @@ const data_plane_media_sdp_t data_plane_add_sender(sdp_process_type_t sdp_type, 
 
 		media_sdp.d_addr = d_addr;
 		media_sdp.d_port = d_port;
-
+		media_sdp.key    = key;
 		printf("[%s +%d] add [c] key [%llu] src [%s:%d] dst [%s:%d]\n", 
 				__FILE__, __LINE__,
 				key,
@@ -115,11 +118,11 @@ int data_plane_del_sender(sdp_process_type_t sdp_type, const data_plane_media_sd
 
 	if (sdp_type == SDP_F) {
 
-		data_plane_f_map.erase(media_sdp.key);
+		data_plane_f_map.erase(data_plane_f_map.find(media_sdp.key));
 
 	} else if (sdp_type == SDP_C) {
 
-		data_plane_c_map.erase(media_sdp.key);
+		data_plane_c_map.erase(data_plane_c_map.find(media_sdp.key));
 	}
 
 	pthread_spin_unlock(&media_map_lock);
@@ -178,10 +181,13 @@ static void *data_plane_send_hint_run_thread(void *arg) {
 		pthread_spin_lock(&media_map_lock);
 		if (data_plane_f_map.size() != 0) {
 			if (data_plane_c_map.size() == 0) {
-				map<uint64_t, data_plane_media_sdp_t>::iterator it = data_plane_f_map.begin();
+				map<int64_t, data_plane_media_sdp_t>::iterator it = data_plane_f_map.begin();
 				while (it != data_plane_f_map.end()) {
 					pthread_spin_unlock(&media_map_lock);
 					send_hint_sound(&(it->second));
+					printf("send hint sound to f src ip [%s] port [%d] dst ip [%s] port [%d]\n",
+							inet_ntoa(*(struct in_addr *)&(it->second).s_addr), (it->second).s_port,
+							inet_ntoa(*(struct in_addr *)&(it->second).d_addr), (it->second).d_port);
 					pthread_spin_lock(&media_map_lock);
 					++it;
 				}
@@ -190,10 +196,13 @@ static void *data_plane_send_hint_run_thread(void *arg) {
 
 		if (data_plane_c_map.size() != 0) {
 			if (data_plane_f_map.size() == 0) {
-				map<uint64_t, data_plane_media_sdp_t>::iterator it = data_plane_c_map.begin();
+				map<int64_t, data_plane_media_sdp_t>::iterator it = data_plane_c_map.begin();
 				while (it != data_plane_c_map.end()) {
 					pthread_spin_unlock(&media_map_lock);
 					send_hint_sound(&(it->second));
+					printf("send hint sound to c src ip [%s] port [%d] dst ip [%s] port [%d]\n",
+							inet_ntoa(*(struct in_addr *)&(it->second).s_addr), (it->second).s_port,
+							inet_ntoa(*(struct in_addr *)&(it->second).d_addr), (it->second).d_port);
 					pthread_spin_lock(&media_map_lock);
 					++it;
 				}
@@ -211,7 +220,7 @@ static void *data_plane_switch_data_run_thread(void *arg) {
 		pthread_spin_lock(&media_map_lock);
 		if (data_plane_f_map.size() != 0) {
 			if (data_plane_c_map.size() != 0) {
-				map<uint64_t, data_plane_media_sdp_t>::iterator it = data_plane_f_map.begin();
+				map<int64_t, data_plane_media_sdp_t>::iterator it = data_plane_f_map.begin();
 				while (it != data_plane_f_map.end()) {
 					pthread_spin_unlock(&media_map_lock);
 
@@ -220,15 +229,18 @@ static void *data_plane_switch_data_run_thread(void *arg) {
 					pthread_spin_lock(&media_map_lock);
 					//send to c
 
-					map<uint64_t, data_plane_media_sdp_t>::iterator it_c = data_plane_c_map.begin();
+					map<int64_t, data_plane_media_sdp_t>::iterator it_c = data_plane_c_map.begin();
 
 					while (it_c != data_plane_c_map.end()) {
+
+						printf("send sound to c src ip [%s] port [%d] dst ip [%s] port [%d]\n",
+							inet_ntoa(*(struct in_addr *)&(it_c->second).s_addr), (it_c->second).s_port,
+							inet_ntoa(*(struct in_addr *)&(it_c->second).d_addr), (it_c->second).d_port);
 
 						udp_interface_send(it_c->second.fd, it_c->second.d_addr, it_c->second.d_port, (uint8_t *)out_data.c_str(), out_data.length());
 
 						++it_c;
 					}
-
 					
 					++it;
 				}
@@ -262,14 +274,19 @@ int data_plane_test() {
 	data_plane_init(global_confs);
 
 	data_plane_media_sdp_t data_media_sdp_f = data_plane_add_sender(SDP_F, inet_addr("192.168.1.100"), 88);
-	printf("test: get server ip %s\n", inet_ntoa(*(struct in_addr *)&data_media_sdp_f.s_addr));
+	data_plane_media_sdp_t data_media_sdp_f2 = data_plane_add_sender(SDP_F, inet_addr("192.168.1.101"), 88);
+	//printf("test: get server ip %s\n", inet_ntoa(*(struct in_addr *)&data_media_sdp_f.s_addr));
 
 
-	data_plane_media_sdp_t data_media_sdp_c = data_plane_add_sender(SDP_C, inet_addr("10.32.27.12"), 88);
-	printf("test: get server ip %s\n", inet_ntoa(*(struct in_addr *)&data_media_sdp_c.s_addr));
+	//data_plane_media_sdp_t data_media_sdp_c = data_plane_add_sender(SDP_C, inet_addr("10.32.27.12"), 88);
+	//printf("test: get server ip %s\n", inet_ntoa(*(struct in_addr *)&data_media_sdp_c.s_addr));
+
+	data_plane_del_sender(SDP_F, data_media_sdp_f);
 
 	data_plane_run();
+	/*
 	while (1) {
 		sleep(1);
 	}
+	*/
 }
