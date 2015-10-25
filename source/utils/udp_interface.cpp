@@ -115,7 +115,7 @@ int udp_interface_send(int32_t sockfd, in_addr_t ip, uint16_t port, uint8_t* dat
 
 	if(sendto(sockfd , data, len, 0 , 
 				(struct sockaddr *)(&client_addr) , sizeof(client_addr)) == -1) {
-		printf("Sendto Fail\n");
+		//printf("Sendto Fail\n");
 		return 0;
 	} else {
 		//printf("Sendto OK\n");
