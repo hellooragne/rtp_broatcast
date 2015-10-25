@@ -305,6 +305,14 @@ void init_client(CLIENT_t *ptC, CONN_SESSION *ptSession)
         pbMsg = (BYTE *)&ptC->aName[0];
         WriteString(&pbMsg, ptSession->tFrom.bName, USER_LTH);
         *pbMsg = '\0';
+        
+        // ID
+        if (ptSession->tFrom.bMap[1]) {
+            pbMsg = (BYTE *)&ptC->aID[0];
+            WriteString(&pbMsg, ptSession->tFrom.bID, USER_LTH);
+            *pbMsg = '\0';
+        }
+        
     } else {
         // anonymous login
     }
@@ -596,7 +604,7 @@ void handle_request_reCONN(CLIENT_t *ptC, CONN_SESSION *ptSession)
     
     CONN_SESSION   *ptResp;
     BYTE           *pbMsg;
-    UINT32          u32IP   = 0;
+    UINT32          u32IP   = INADDR_NONE;
     UINT16          u16Port = 0;
     
 
@@ -752,22 +760,47 @@ void handle_request_NOTIFY(CLIENT_t *ptC, CONN_SESSION *ptSession)
             BYTE    bString[COMMEN_LTH];
             
             if (ptC != &atClient[0]) {
+            /* requirement update: C CAN request F'state, F CAN request C state-list.
             // NOT F. reject this request.
                 sendMgrResponse(&ptC->tAddrRemoteSignal, ptSession, 403, reinterpret_cast<const unsigned char *>("Forbidden. You have no right to access this infomation."));
-                return;
+            */
+                WriteString(&pbMsg, (BYTE *)"1:", COMMEN_LTH);
+                WriteString(&pbMsg, (BYTE *)&atClient[0].aName[0], USER_LTH);
+                if ('\0' != atClient[0].aID[0]) {
+                    WriteString(&pbMsg, (BYTE *)"<", 2);
+                    WriteString(&pbMsg, (BYTE *)&atClient[0].aID[0], USER_LTH);
+                    WriteString(&pbMsg, (BYTE *)">", 2);
+                }
+                *pbMsg++ = ':';
+                WriteString(&pbMsg, (BYTE *)inet_ntoa( *((struct in_addr *)&atClient[0].tAddrRemoteSignal.ip_addr) ), HOST_NAME_LTH);
+                
+                *pbMsg++ = '\r';
+                *pbMsg++ = '\n';
+                
+                ptSession->wBdyLth = pbMsg - &ptSession->bBody[0];
+                
+                break;
             }
             
+            // Now, F request C-list.
             for (i=1; i<MAX_CONNECT_CLIENT; i++) {
                 if (atClient[i].eState == eCLIENT_STATE_NONE) {
                     continue;
                 }
                 
+                // format as: 
+                //    "No.:Name<ID>:IP"
                 sprintf((char*)bString, "%d", i);
                 WriteString(&pbMsg, &bString[0], COMMEN_LTH);
                 *pbMsg++ = ':';
-                WriteString(&pbMsg, (BYTE *)&ptC->aName[0], USER_LTH);
+                WriteString(&pbMsg, (BYTE *)&atClient[i].aName[0], USER_LTH);
+                if ('\0' != atClient[i].aID[0]) {
+                    WriteString(&pbMsg, (BYTE *)"<", 2);
+                    WriteString(&pbMsg, (BYTE *)&atClient[i].aID[0], USER_LTH);
+                    WriteString(&pbMsg, (BYTE *)">", 2);
+                }
                 *pbMsg++ = ':';
-                WriteString(&pbMsg, (BYTE *)inet_ntoa( *((struct in_addr *)&ptC->tAddrRemoteSignal.ip_addr) ), HOST_NAME_LTH);
+                WriteString(&pbMsg, (BYTE *)inet_ntoa( *((struct in_addr *)&atClient[i].tAddrRemoteSignal.ip_addr) ), HOST_NAME_LTH);
                 
                 *pbMsg++ = '\r';
                 *pbMsg++ = '\n';

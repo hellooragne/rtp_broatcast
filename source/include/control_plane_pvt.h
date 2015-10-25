@@ -37,6 +37,7 @@ typedef struct {
 typedef struct {
     eCLIENT_STATE    eState;
     char             aName[USER_LTH];
+    char             aID[USER_LTH];
     
     // Session
     BYTE             aUUID[ID_TOKEN_LTH];

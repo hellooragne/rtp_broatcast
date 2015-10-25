@@ -260,10 +260,10 @@ BOOL8 DecodeFrom(FROM *ptFrom, BYTE **ppbMessage)
         return FALSE_B8;
     }
     
-    /* From: */
+    /* From: name<ID>*/
 	// user
 	bLocation=0;
-	while( (**ppbMessage!='\r') && (bLocation<USER_LTH) && (**ppbMessage!='\0') )
+	while( (**ppbMessage!='<') &&(**ppbMessage!='\r') && (bLocation<USER_LTH) && (**ppbMessage!='\0') )
 	{
         ptFrom->bName[bLocation++]=*(*ppbMessage)++;
 	}
@@ -272,6 +272,20 @@ BOOL8 DecodeFrom(FROM *ptFrom, BYTE **ppbMessage)
 		return FALSE_B8;
 	}
 	ptFrom->bMap[0] = 1;
+	(*ppbMessage)++;   // '<'
+	
+	// ID
+	bLocation=0;
+	while( (**ppbMessage!='>') &&(**ppbMessage!='\r') && (bLocation<USER_LTH) && (**ppbMessage!='\0') )
+	{
+        ptFrom->bID[bLocation++]=*(*ppbMessage)++;
+	}
+	if ((**ppbMessage=='\0') || (bLocation==USER_LTH))
+	{
+		return FALSE_B8;
+	}
+	ptFrom->bMap[1] = 1;
+	(*ppbMessage)++;   // '>'
 	
 	(*ppbMessage)+=2;  /* \r\n */
     
