@@ -17,7 +17,8 @@ wifi_control_plane_confs_t   m_confs;
  atClient[0]      :   F
  atClient[1-60]   :   C1 - C60
  */
-CLIENT_t atClient[MAX_CONNECT_CLIENT];
+//CLIENT_t atClient[MAX_CONNECT_CLIENT];
+CLIENT_t * patClient = NULL;
 /*
 typedef enum {
     eCLIENT_STATE_NONE,
@@ -43,7 +44,7 @@ BOOL8  control_plane_init(UINT16 u16LocalPort, UINT16 u16MaxConn,
     struct hostent  *hp;
     char  hname[PATH_MAX];
     char  *pStrIp;
-    
+
     // get host-ip
     gethostname(hname, PATH_MAX);
     printf("INFO. Host name is :%s\n", hname);
@@ -52,10 +53,10 @@ BOOL8  control_plane_init(UINT16 u16LocalPort, UINT16 u16MaxConn,
     //pStrIp = inet_ntoa(*((struct in_addr *)(hp->h_addr)));
     if (!pStrIp) {
         printf("ERROR. Can NOT get host ip.\n");
-    } 
+    }
     strcpy(&m_confs.aLocalIp[0], pStrIp);
     printf("INFO. hostip = %s \n", m_confs.aLocalIp);
-    
+
     m_confs.u16LocalPort         = u16LocalPort;
     m_confs.u16MaxConn           = u16MaxConn;
     if (u8FNameLth > USER_LTH)
@@ -64,9 +65,10 @@ BOOL8  control_plane_init(UINT16 u16LocalPort, UINT16 u16MaxConn,
     strcpy(m_confs.aFName, aFName);
     m_confs.u32KATimer           = u32KATimer;
     m_confs.u32OfflineTimer      = u32OfflineTimer;
-    
-    memset(&atClient, 0, sizeof(atClient));
-    
+
+    patClient = new CLIENT_t[MAX_CONNECT_CLIENT];
+    memset(patClient, 0, sizeof(*patClient));
+
     return TRUE_B8;
 }
 
@@ -128,7 +130,7 @@ void  signal_callback(S_EV_L1L3_MESSAGE *pEv)
             case MSG_RQST_CONN:
                 {
                     if (blF) {
-                        ptClient = &atClient[0];
+                        ptClient = &patClient[0];
                         if (ptClient->eState != eCLIENT_STATE_NONE) {
                             printf("ERROR. there has already another F logged on system, must LOGOUT or RESET first.\n");
                             sendMgrResponse(&pEv->srcAddr, &tSession, 486, reinterpret_cast<const unsigned char *>("Busy. Already has one F here."));
@@ -210,15 +212,15 @@ void locateClientByUUID(BYTE *pName, BYTE *pUUID, BOOL8 *pblF, CLIENT_t **ptC)
     
     for (i=0; i<MAX_CONNECT_CLIENT; i++)
     {
-        if (atClient[i].eState == eCLIENT_STATE_NONE) {
+        if (patClient[i].eState == eCLIENT_STATE_NONE) {
             continue;
         }
         
-        if (StrICmp(pUUID,atClient[i].aUUID)) {
+        if (StrICmp(pUUID,patClient[i].aUUID)) {
             // found, return
             if (i == 0)
                 *pblF = TRUE_B8;
-            *ptC = &atClient[i];
+            *ptC = &patClient[i];
             return;
         }
         
@@ -240,15 +242,15 @@ void locateClientByName(BYTE *pName, BOOL8 *pblF, CLIENT_t **ptC)
     INT32 i;
     for (i=0; i<MAX_CONNECT_CLIENT; i++)
     {
-        if (atClient[i].eState == eCLIENT_STATE_NONE) {
+        if (patClient[i].eState == eCLIENT_STATE_NONE) {
             continue;
         }
         
-        if (StrICmp(pName,(BYTE *)atClient[i].aName)) {
+        if (StrICmp(pName,(BYTE *)patClient[i].aName)) {
             // found, return
             if (i == 0)
                 *pblF = TRUE_B8;
-            *ptC = &atClient[i];
+            *ptC = &patClient[i];
             return;
         }
         
@@ -266,14 +268,14 @@ CLIENT_t * getClient()
 {
     INT32 i;
     
-    // only get C client. F is always the first element [0] in atClient.
+    // only get C client. F is always the first element [0] in patClient.
     for (i=1; i<MAX_CONNECT_CLIENT; i++)
     {
-        if (atClient[i].eState == eCLIENT_STATE_NONE) {
+        if (patClient[i].eState == eCLIENT_STATE_NONE) {
             // init this instance
             //memset(ptC, 0, sizeof(*ptC));
             
-            return &atClient[i];
+            return &patClient[i];
         }
         
     }
@@ -431,7 +433,7 @@ void sendMgrResponse(IP_ADDR_PORT_V4 *ptDest, CONN_SESSION *ptReq, DWORD dwSCode
 
 void dispatch_ev_toF(CONN_SESSION *ptSession)
 {
-    CLIENT_t   *ptC = &atClient[0]; 
+    CLIENT_t   *ptC = &patClient[0];
     
     dispatch_ev_toC(ptC, ptSession);
     return;
@@ -483,23 +485,23 @@ void handle_req_time_tick()
     
     for (i=0; i<MAX_CONNECT_CLIENT; i++)
     {
-        if (atClient[i].eState == eCLIENT_STATE_NONE) {
+        if (patClient[i].eState == eCLIENT_STATE_NONE) {
             continue;
         }
         
-        nDiffSecs = nSecs - atClient[i].n32TimeGotKA;
+        nDiffSecs = nSecs - patClient[i].n32TimeGotKA;
         if (nDiffSecs > m_confs.u32OfflineTimer) {
             printf("ERROR. reach offline-time[%d], release instance. \n", m_confs.u32OfflineTimer);
             
             // delete... media-plane
             sdp_process_type_t eClientType = (0 == i) ? SDP_F : SDP_C;
-            data_plane_del_sender(eClientType, atClient[i].tMedia);
+            data_plane_del_sender(eClientType, patClient[i].tMedia);
             
             // release this client SCILENTLY...
-            freeClient(&atClient[i]);
+            freeClient(&patClient[i]);
 
         } else if (nDiffSecs > nInactiveSecs) {
-            if (eCLIENT_STATE_INACTIVE == atClient[i].eState) {
+            if (eCLIENT_STATE_INACTIVE == patClient[i].eState) {
                 // already in-active
                 continue;
             }
@@ -508,11 +510,11 @@ void handle_req_time_tick()
             
             // inactive state, suspend media.
             sdp_process_type_t eClientType = (0 == i) ? SDP_F : SDP_C;
-            data_plane_suspend(eClientType, atClient[i].tMedia, SUSPEND_ON);
+            data_plane_suspend(eClientType, patClient[i].tMedia, SUSPEND_ON);
             
             
             // inactive, NOTIFY media module t stop sending/recieving
-            atClient[i].eState = eCLIENT_STATE_INACTIVE;
+            patClient[i].eState = eCLIENT_STATE_INACTIVE;
             
         }
         
@@ -548,7 +550,7 @@ void handle_request_CONN(CLIENT_t *ptC, CONN_SESSION *ptSession)
     
 
     // activate media plane
-    sdp_process_type_t eClientType = (ptC == &atClient[0]) ? SDP_F : SDP_C;
+    sdp_process_type_t eClientType = (ptC == &patClient[0]) ? SDP_F : SDP_C;
     ptC->tMedia = data_plane_add_sender(eClientType, ptC->tAddrRemoteMedia.ip_addr, ptC->tAddrRemoteMedia.port);
 
     /* useless
@@ -639,7 +641,7 @@ void handle_request_reCONN(CLIENT_t *ptC, CONN_SESSION *ptSession)
         ptC->tAddrRemoteMedia.port = u16Port;
         
         // update media plane
-        sdp_process_type_t eClientType = (ptC == &atClient[0]) ? SDP_F : SDP_C;
+        sdp_process_type_t eClientType = (ptC == &patClient[0]) ? SDP_F : SDP_C;
         data_plane_del_sender(eClientType, ptC->tMedia);
         ptC->tMedia = data_plane_add_sender(eClientType, ptC->tAddrRemoteMedia.ip_addr, ptC->tAddrRemoteMedia.port);
         
@@ -691,7 +693,7 @@ void handle_request_DISCONN(CLIENT_t *ptC, CONN_SESSION *ptSession)
     // TODO...
     
     // delete media-plane
-    sdp_process_type_t eClientType = (ptC == &atClient[0]) ? SDP_F : SDP_C;
+    sdp_process_type_t eClientType = (ptC == &patClient[0]) ? SDP_F : SDP_C;
     data_plane_del_sender(eClientType, ptC->tMedia);
     
     sendMgrResponse(&ptC->tAddrRemoteSignal, ptSession, 200, reinterpret_cast<const unsigned char *>("OK"));
@@ -704,7 +706,7 @@ void handle_request_DISCONN(CLIENT_t *ptC, CONN_SESSION *ptSession)
 
 void handle_request_RESET(CLIENT_t *ptC, CONN_SESSION *ptSession)
 {
-    sdp_process_type_t eClientType = (ptC == &atClient[0]) ? SDP_F : SDP_C;
+    sdp_process_type_t eClientType = (ptC == &patClient[0]) ? SDP_F : SDP_C;
     data_plane_del_sender(eClientType, ptC->tMedia);
     
     sendMgrResponse(&ptC->tAddrRemoteSignal, ptSession, 200, reinterpret_cast<const unsigned char *>("OK. Instance is already released."));
@@ -730,7 +732,7 @@ void handle_request_NOTIFY(CLIENT_t *ptC, CONN_SESSION *ptSession)
             ptC->eState = eCLIENT_STATE_CONNECTED;
             
             // resume media plane
-            sdp_process_type_t eClientType = (ptC == &atClient[0]) ? SDP_F : SDP_C;
+            sdp_process_type_t eClientType = (ptC == &patClient[0]) ? SDP_F : SDP_C;
             data_plane_suspend(eClientType, ptC->tMedia, SUSPEND_OFF);
             
         }
@@ -759,20 +761,20 @@ void handle_request_NOTIFY(CLIENT_t *ptC, CONN_SESSION *ptSession)
             BYTE    i;
             BYTE    bString[COMMEN_LTH];
             
-            if (ptC != &atClient[0]) {
+            if (ptC != &patClient[0]) {
             /* requirement update: C CAN request F'state, F CAN request C state-list.
             // NOT F. reject this request.
                 sendMgrResponse(&ptC->tAddrRemoteSignal, ptSession, 403, reinterpret_cast<const unsigned char *>("Forbidden. You have no right to access this infomation."));
             */
                 WriteString(&pbMsg, (BYTE *)"1:", COMMEN_LTH);
-                WriteString(&pbMsg, (BYTE *)&atClient[0].aName[0], USER_LTH);
-                if ('\0' != atClient[0].aID[0]) {
+                WriteString(&pbMsg, (BYTE *)&patClient[0].aName[0], USER_LTH);
+                if ('\0' != patClient[0].aID[0]) {
                     WriteString(&pbMsg, (BYTE *)"<", 2);
-                    WriteString(&pbMsg, (BYTE *)&atClient[0].aID[0], USER_LTH);
+                    WriteString(&pbMsg, (BYTE *)&patClient[0].aID[0], USER_LTH);
                     WriteString(&pbMsg, (BYTE *)">", 2);
                 }
                 *pbMsg++ = ':';
-                WriteString(&pbMsg, (BYTE *)inet_ntoa( *((struct in_addr *)&atClient[0].tAddrRemoteSignal.ip_addr) ), HOST_NAME_LTH);
+                WriteString(&pbMsg, (BYTE *)inet_ntoa( *((struct in_addr *)&patClient[0].tAddrRemoteSignal.ip_addr) ), HOST_NAME_LTH);
                 
                 *pbMsg++ = '\r';
                 *pbMsg++ = '\n';
@@ -784,7 +786,7 @@ void handle_request_NOTIFY(CLIENT_t *ptC, CONN_SESSION *ptSession)
             
             // Now, F request C-list.
             for (i=1; i<MAX_CONNECT_CLIENT; i++) {
-                if (atClient[i].eState == eCLIENT_STATE_NONE) {
+                if (patClient[i].eState == eCLIENT_STATE_NONE) {
                     continue;
                 }
                 
@@ -793,17 +795,23 @@ void handle_request_NOTIFY(CLIENT_t *ptC, CONN_SESSION *ptSession)
                 sprintf((char*)bString, "%d", i);
                 WriteString(&pbMsg, &bString[0], COMMEN_LTH);
                 *pbMsg++ = ':';
-                WriteString(&pbMsg, (BYTE *)&atClient[i].aName[0], USER_LTH);
-                if ('\0' != atClient[i].aID[0]) {
+                WriteString(&pbMsg, (BYTE *)&patClient[i].aName[0], USER_LTH);
+                if ('\0' != patClient[i].aID[0]) {
                     WriteString(&pbMsg, (BYTE *)"<", 2);
-                    WriteString(&pbMsg, (BYTE *)&atClient[i].aID[0], USER_LTH);
+                    WriteString(&pbMsg, (BYTE *)&patClient[i].aID[0], USER_LTH);
                     WriteString(&pbMsg, (BYTE *)">", 2);
                 }
                 *pbMsg++ = ':';
-                WriteString(&pbMsg, (BYTE *)inet_ntoa( *((struct in_addr *)&atClient[i].tAddrRemoteSignal.ip_addr) ), HOST_NAME_LTH);
+                WriteString(&pbMsg, (BYTE *)inet_ntoa( *((struct in_addr *)&patClient[i].tAddrRemoteSignal.ip_addr) ), HOST_NAME_LTH);
                 
                 *pbMsg++ = '\r';
                 *pbMsg++ = '\n';
+
+                if ((pbMsg - &ptSession->bBody[0]) > (MAX_BODY_LTH)-100) {
+                    WriteString(&pbMsg, (BYTE *)"buffer overflow.Please contact DEV A.S.A.P", 50);
+                    // break for now. We will later check reason.
+                    break;
+                }
             }
             
             ptSession->wBdyLth = pbMsg - &ptSession->bBody[0];

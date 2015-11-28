@@ -101,9 +101,9 @@ Content-Length: 0
         fd_set tRset;
         struct timeval tTimeV;
 
-        S_EV_L1L3_MESSAGE    ev;   // message to Transaction layer
+        S_EV_L1L3_MESSAGE   * pEv = new S_EV_L1L3_MESSAGE;   // message to Transaction layer
 
-        memset(&ev, 0, sizeof(ev));
+        memset(pEv, 0, sizeof(*pEv));
         memset(&tPeerAddr, 0, sizeof(tPeerAddr));
         
         if (!init_socket(&u32EXTSockfd)) {
@@ -125,8 +125,8 @@ Content-Length: 0
             if (nCurrentTime - nCheckTime > 1) {
                 nCheckTime = nCurrentTime;
                 
-                ev.eType = eEV_TYPE_TIMER_TICK;
-                signal_callback(&ev);
+                pEv->eType = eEV_TYPE_TIMER_TICK;
+                signal_callback(pEv);
             }
 
             // get signal from F/C
@@ -138,7 +138,7 @@ Content-Length: 0
 
             u32SockLth = sizeof( tPeerAddr );
             
-            nMsgLth = recvfrom( u32EXTSockfd, ev.msgBuf, MAX_MESSAGE_LTH,
+            nMsgLth = recvfrom( u32EXTSockfd, pEv->msgBuf, MAX_MESSAGE_LTH,
                                     0, (struct sockaddr *)&tPeerAddr, &u32SockLth);
 
             if ( nMsgLth == -1 )
@@ -148,19 +148,19 @@ Content-Length: 0
             }
             else     /// * recv a Useful msg
             {
-                ev.eType  = eEV_TYPE_MSG;
-                ev.msgLen = nMsgLth;
+                pEv->eType  = eEV_TYPE_MSG;
+                pEv->msgLen = nMsgLth;
                 //ev.srcAddr.port = htons(tPeerAddr.sin_port);
-                ev.srcAddr.port = tPeerAddr.sin_port;
+                pEv->srcAddr.port = tPeerAddr.sin_port;
 
-                memcpy(&ev.srcAddr.ip_addr, &tPeerAddr.sin_addr.s_addr, 4);
+                memcpy(&pEv->srcAddr.ip_addr, &tPeerAddr.sin_addr.s_addr, 4);
 
                 // * recvieved a Useful Message, send to upper layer
-                signal_callback(&ev);
+                signal_callback(pEv);
 
                 // re-init the event struct
                 memset(&tPeerAddr, 0, sizeof(tPeerAddr));
-                memset(&ev, 0, sizeof(ev));
+                memset(pEv, 0, sizeof(*pEv));
             }
         }
 
