@@ -74,8 +74,10 @@ void rtp_process_send(int fd, rtp_process_t *rtp_process_context, uint8_t *data,
 	rtp_process_set_seq(rtp_process_context);
 	rtp_process_set_head(rtp_process_context, out, sizeof(out));
 	if (len < (sizeof(out) - sizeof(rtp_header))) {
-		memcpy(out + sizeof(rtp_header), data, len);
-		udp_interface_send(fd, rtp_process_context->ip, rtp_process_context->port, out, len + sizeof(rtp_header));
+		if (data != NULL) {
+		    memcpy(out + sizeof(rtp_header), data, len);
+		    udp_interface_send(fd, rtp_process_context->ip, rtp_process_context->port, out, len + sizeof(rtp_header));
+		}
 	} else {
 
 	}
@@ -86,8 +88,10 @@ void rtp_process_send(rtp_process_t *rtp_process_context, uint8_t *data, uint32_
 	rtp_process_set_seq(rtp_process_context);
 	rtp_process_set_head(rtp_process_context, out, sizeof(out));
 	if (len < (sizeof(out) - sizeof(rtp_header))) {
-		memcpy(out + sizeof(rtp_header), data, len);
-		udp_interface_send(rtp_socket_fd, rtp_process_context->ip, rtp_process_context->port, out, len + sizeof(rtp_header));
+		if (data != NULL) {
+		    memcpy(out + sizeof(rtp_header), data, len);
+		    udp_interface_send(rtp_socket_fd, rtp_process_context->ip, rtp_process_context->port, out, len + sizeof(rtp_header));
+		}
 	} else {
 
 	}
