@@ -2,6 +2,7 @@
 
 #include <map>
 #include <pthread.h>
+#include <unistd.h>
 
 #include "data_plane.h"
 #include "media_file.h"
@@ -30,6 +31,7 @@ static pthread_spinlock_t media_map_lock = 0;
 int data_plane_init(global_confs_t global_confs) {
 	pthread_spin_init(&media_map_lock, PTHREAD_PROCESS_SHARED);
 	SF_INFO sf_info;
+	printf("open sound file %s\n", global_confs.aMohNoConn);
 	SNDFILE *fd = media_file_open(global_confs.aMohNoConn, sf_info);
 	if (fd != NULL) {
 		media_file_buf = NULL;
@@ -173,6 +175,7 @@ static void send_hint_sound(data_plane_media_sdp_t *sdp) {
 		gettimeofday(&time_now, NULL);
 		if ((time_now.tv_sec * 1000000 + time_now.tv_usec) >= (20000 + (time_start.tv_sec * 1000000 + time_start.tv_usec))) {
 			if (i * 160 <= media_file_len) {
+				printf("media Index %p \n", media_index + 160 * i);
 				rtp_process_send(sdp->fd, &(sdp->rtp_process_context), media_index + 160 * i, 160);
 			} else {
 				return;
@@ -192,12 +195,13 @@ static void *data_plane_send_hint_run_thread(void *arg) {
 		if (data_plane_f_map.size() != 0) {
 			if (data_plane_c_map.size() == 0) {
 				map<int64_t, data_plane_media_sdp_t>::iterator it = data_plane_f_map.begin();
+				printf("send hint sound to f \n");
 				while (it != data_plane_f_map.end()) {
 					pthread_spin_unlock(&media_map_lock);
-					send_hint_sound(&(it->second));
 					printf("send hint sound to f src ip [%s] port [%d] dst ip [%s] port [%d]\n",
 							inet_ntoa(*(struct in_addr *)&(it->second).s_addr), (it->second).s_port,
 							inet_ntoa(*(struct in_addr *)&(it->second).d_addr), (it->second).d_port);
+					send_hint_sound(&(it->second));
 					pthread_spin_lock(&media_map_lock);
 					++it;
 				}
@@ -210,12 +214,11 @@ static void *data_plane_send_hint_run_thread(void *arg) {
 				map<int64_t, data_plane_media_sdp_t>::iterator it = data_plane_c_map.begin();
 				while (it != data_plane_c_map.end()) {
 					pthread_spin_unlock(&media_map_lock);
-					send_hint_sound(&(it->second));
-					/*
 					printf("send hint sound to c src ip [%s] port [%d] dst ip [%s] port [%d]\n",
 							inet_ntoa(*(struct in_addr *)&(it->second).s_addr), (it->second).s_port,
 							inet_ntoa(*(struct in_addr *)&(it->second).d_addr), (it->second).d_port);
-							*/
+					send_hint_sound(&(it->second));
+					printf("end send sound to c\n");
 					pthread_spin_lock(&media_map_lock);
 					++it;
 				}
