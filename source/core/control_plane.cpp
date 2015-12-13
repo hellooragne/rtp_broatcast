@@ -353,7 +353,7 @@ void sendResponse(IP_ADDR_PORT_V4 *ptDest, CONN_SESSION *ptResp, DWORD dwSCode, 
     *pbMsg = '\0';
     
     // generate response string
-    blResult = P_ComEncode(bStrResp, &wLen, ptResp);
+    blResult = P_ComEncode(&bStrResp[0], &wLen, ptResp);
     if (!blResult) {
         printf("ERROR. response encoding error.\n");
         return;
@@ -382,7 +382,7 @@ void sendMgrResponse(IP_ADDR_PORT_V4 *ptDest, CONN_SESSION *ptReq, DWORD dwSCode
     struct sockaddr_in tPeerAddr;
     BOOL8 blResult = FALSE_B8;
     BYTE  bStrResp[MAX_SIGNAL_LTH];
-    WORD  wLen;
+    WORD  wLen = MAX_SIGNAL_LTH;
     BYTE *pbMsg;
     
     CONN_SESSION  *ptResp;

@@ -712,14 +712,14 @@ void getMsgType(CONN_SESSION *pt)
 
 BOOL8 WriteString(BYTE **ppbMessage, BYTE *pbStr, WORD wLth) 
 {
-    BYTE   bLocation;
+    WORD   wLocation;
     
-    bLocation=0;
-    while( (pbStr[bLocation]!='\0')&&(bLocation<wLth) )
+    wLocation=0;
+    while( (pbStr[wLocation]!='\0')&&(wLocation<wLth) )
     {
-    	*(*ppbMessage)++ = pbStr[bLocation++];
+        *(*ppbMessage)++ = pbStr[wLocation++];
     }
-    if(bLocation==wLth)
+    if(wLocation==wLth)
         return FALSE_B8;
     else
         return TRUE_B8;
