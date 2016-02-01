@@ -4,6 +4,7 @@
 #include "control_plane.h"
 #include <time.h>
 #include <errno.h>
+#include <syslog.h>
 
 #include "data_plane.h"
 
@@ -14,51 +15,55 @@ BOOL8 init_socket(UINT32 *);
 
 int main() {
     //data_plane_test();
-	
+
     BOOL8  blResult;
 	INT32  n32Result;
-	printf("hello broadcast rtp\n");
-    
+
+    openlog("W_D", LOG_CONS, LOG_USER);
+
+    printf("hello broadcast rtp\n");
+    syslog(LOG_DEBUG, "hello broadcast rtp\n");
+
     // load data from .conf file
     n32Result = load_config(&global_confs, FALSE_B8);
-    
+
     // init modules
     blResult = control_plane_init(global_confs.u16SrvPort, global_confs.u16MaxConn, 
             global_confs.aFName, strlen(global_confs.aFName), global_confs.u32KATimer, 
             global_confs.u32OfflineTimer );
     if (!blResult) {
-        printf("ERROR. control-plane init failure.\n");
+        syslog(LOG_ERR, "control-plane init failure.\n");
         return -1;
     }
-    
+
     // init media plane
     //data_plane_test();
     //data_plane_init(global_confs, 2000, 3000, "./sound/1.wav");
     data_plane_init(global_confs);
     data_plane_run();
-    
-    
+
+
     /**
      *  system running now
      */
     blWifiRunning = TRUE_B8;
-    
+
     // listen socket, process all signals
-    
+
 // comment this code after test....
     if (false)
     {
         S_EV_L1L3_MESSAGE    ev;   // message to Transaction layer
-    
+
         memset(&ev, 0, sizeof(ev));
-        
+
         if(false) {
         // test time-tick
             ev.eType = eEV_TYPE_TIMER_TICK;
             signal_callback(&ev);
         }
 
-        //if (false) 
+        //if (false)
         {
         // test recv a signal message
             INT32  nMsgLth;
@@ -75,7 +80,7 @@ Content-Length: 0
             nMsgLth = strlen(strSignal);
             strcpy((char *)ev.msgBuf, strSignal);
             //nMsgLth = recvfrom(Sockfd, ev.msgBuf, MAX_LTH, 0, &tPeerAddr, &u32Lth);
-            
+
             ev.eType  = eEV_TYPE_MSG;
             ev.msgLen = nMsgLth;
             //ev.srcAddr.port = htons(9999);
@@ -84,11 +89,12 @@ Content-Length: 0
             ev.srcAddr.ip_addr = inet_addr("192.168.1.209");
 
             // * recvieved a Useful Message, send to upper layer
-            printf("INFO. send TEST signal to control-plane.\n");
+            syslog(LOG_DEBUG, "send TEST signal to control-plane\n");
+
             signal_callback(&ev);
         }
     }
-    
+
     //if (false)
 //
     {
@@ -105,11 +111,11 @@ Content-Length: 0
 
         memset(pEv, 0, sizeof(*pEv));
         memset(&tPeerAddr, 0, sizeof(tPeerAddr));
-        
+
         if (!init_socket(&u32EXTSockfd)) {
             return FALSE_B8;
         };
-        
+
         setSvrSockfd(u32EXTSockfd);
 
         while( blWifiRunning )
@@ -119,12 +125,12 @@ Content-Length: 0
 
             FD_ZERO(&tRset);
             FD_SET( u32EXTSockfd, &tRset );
-            
+
             // send clock-tick every 1s
             nCurrentTime = time( (time_t *)NULL );
             if (nCurrentTime - nCheckTime > 1) {
                 nCheckTime = nCurrentTime;
-                
+
                 pEv->eType = eEV_TYPE_TIMER_TICK;
                 signal_callback(pEv);
             }
@@ -132,12 +138,12 @@ Content-Length: 0
             // get signal from F/C
             if( ( n32Ready = select(u32EXTSockfd+1, &tRset, NULL, NULL, &tTimeV) ) == -1 )
             {
-                printf("select() error : errornum = %d\n ", errno);
+                syslog(LOG_ERR, "select() error : errornum = %d\n ", errno);
                 continue;    // * next one 
             }
 
             u32SockLth = sizeof( tPeerAddr );
-            
+
             nMsgLth = recvfrom( u32EXTSockfd, pEv->msgBuf, MAX_MESSAGE_LTH,
                                     0, (struct sockaddr *)&tPeerAddr, &u32SockLth);
 
@@ -165,7 +171,7 @@ Content-Length: 0
         }
 
     }
-    
+
 	return 0;
 }
 
@@ -177,24 +183,24 @@ BOOL8 init_socket(UINT32 *svrSockfd)
     struct sockaddr_in  tSrvaddr;
     INT32 n32Temp, n32ReturnValue;
     UINT32 svrfd;
-    
-    n32Temp = 1; 
-    
+
+    n32Temp = 1;
+
     if (!svrSockfd)
         return FALSE_B8;
-        
+
     svrfd = socket(AF_INET, SOCK_DGRAM,0);
-    
+
     n32Temp = fcntl(svrfd, F_GETFL, 0);
-	n32ReturnValue = fcntl(svrfd, F_SETFL, n32Temp | O_NONBLOCK);	
+    n32ReturnValue = fcntl(svrfd, F_SETFL, n32Temp | O_NONBLOCK);
     if ( n32ReturnValue == -1)
     {
-        printf("Error. fcntl: EXT socket error = %d", errno);
+        syslog(LOG_ERR, "Error. fcntl: EXT socket error = %d", errno);
         return FALSE_B8;
     }
-         
+
     memset( (void*)&tSrvaddr,0,sizeof(tSrvaddr) );
-    
+
     tSrvaddr.sin_family = AF_INET;
     tSrvaddr.sin_addr.s_addr = htonl( INADDR_ANY );
 
@@ -203,12 +209,12 @@ BOOL8 init_socket(UINT32 *svrSockfd)
     n32ReturnValue = bind(svrfd, (struct sockaddr *)&tSrvaddr, sizeof( tSrvaddr ));
     if ( n32ReturnValue != 0)
     {
-        printf("Error. bind: EXT socket error errno = %d", errno);
+        syslog(LOG_ERR, "Error. bind: EXT socket error errno = %d", errno);
         return FALSE_B8;
     }
-    
+
     *svrSockfd = svrfd;
-    
+
     return TRUE_B8;
 }
 

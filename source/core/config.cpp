@@ -1,6 +1,7 @@
 #include "config.h"
 #include "lib_utils.h"
 #include <assert.h>
+#include <syslog.h>
 
 INT32 load_config(global_confs_t *pConf, BOOL8 blReload)
 {
@@ -17,7 +18,7 @@ INT32 load_config(global_confs_t *pConf, BOOL8 blReload)
 
     if ( ( pFileCfg = fopen("./wifi_d.conf","r") ) == NULL )
     {
-        printf(" load_config() error : The file 'wifi_d.conf' could not opened \n");
+        syslog(LOG_DEBUG, "load_config() error : can not open file 'wifi_d.conf'\n");
     }
 
     n32Linenumber  = 0;
@@ -30,19 +31,19 @@ INT32 load_config(global_confs_t *pConf, BOOL8 blReload)
         {
             if ( n32RecordCount == 0 )
             {
-                printf("load_config() error : No Data in the file.\n");
+                syslog(LOG_ERR, "load_config() error : No Data in the file.\n");
                 break;     /* end of the file */
             }
             else
             {
-                printf("load_config() OK : No Data yet in the file.\n");
+                syslog(LOG_DEBUG, "load_config() OK : No Data yet in the file.\n");
                 break;     /* all data scaned. end of the file */
             }
         }
         else
         {
             n32Linenumber++;
-            
+
             // start with new-line, pass
             // start with '#', pass.  this is a comment line
             if ( (chLine[0] == '/') || (chLine[0] == '\r') || (chLine[0] == '\n')
@@ -69,13 +70,13 @@ INT32 load_config(global_confs_t *pConf, BOOL8 blReload)
 
         if ( (n32TokenCount < 2) && (n32TokenCount != 0) )
         {
-            printf("readCallInfo() Error : Read Incomplete Schedule Record.\n");
-            printf("Line NUM = %d, Record Num = %d, Token NUM = %d\n", n32Linenumber, n32RecordCount, n32TokenCount );
+            syslog(LOG_ERR, "readCallInfo() : Read Incomplete Schedule Record.\n");
+            syslog(LOG_ERR, "Line NUM = %d, Record Num = %d, Token NUM = %d\n", n32Linenumber, n32RecordCount, n32TokenCount);
             return -1;
         }
-        
-        printf("\ncurrent var-name is: %s\n", chLine);
-        printf("record value is: %s\n", chRecord[1]);
+
+        syslog(LOG_DEBUG, "\ncurrent var-name is: %s\n", chLine);
+        syslog(LOG_DEBUG, "record value is: %s\n", chRecord[1]);
 
         /* change the string to data */
         strToLower( &chRecord[0][0] );
@@ -105,7 +106,7 @@ INT32 load_config(global_confs_t *pConf, BOOL8 blReload)
         } else if ( strcmp(&chRecord[0][0], "timer_offline") == 0 ) {
             pConf->u32OfflineTimer = (UINT16)atoi(&chRecord[1][0]);
         } else {
-            printf("%s has unkown data at %d, program exit!\n", __FILE__, __LINE__ );
+            syslog(LOG_WARNING, "%s has unkown data at %d, program exit!\n", __FILE__, __LINE__);
             return n32RecordCount;
         }
 
@@ -113,9 +114,9 @@ INT32 load_config(global_confs_t *pConf, BOOL8 blReload)
         assert( n32RecordCount < 100 );
 
     }while ( !feof(pFileCfg) );
-                          
+
     fclose( pFileCfg );
-                          
+
     return n32RecordCount;
 }
 
