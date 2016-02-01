@@ -31,16 +31,16 @@ static pthread_spinlock_t media_map_lock = 0;
 int data_plane_init(global_confs_t global_confs) {
 	pthread_spin_init(&media_map_lock, PTHREAD_PROCESS_SHARED);
 	SF_INFO sf_info;
-	printf("open sound file %s\n", global_confs.aMohNoConn);
+	syslog(LOG_DEBUG, "open sound file %s\n", global_confs.aMohNoConn);
 	SNDFILE *fd = media_file_open(global_confs.aMohNoConn, sf_info);
 	if (fd != NULL) {
 		media_file_buf = NULL;
 		media_file_buf = (uint8_t *)malloc(sf_info.frames * 10);
 		int file_ret = media_file_read(fd, media_file_buf, sf_info.frames);
 		media_file_len = sf_info.frames;
-		printf("file ret %d media file len %lld\n", file_ret, sf_info.frames);
+		syslog(LOG_DEBUG, "file ret %d media file len %lld\n", file_ret, sf_info.frames);
 	} else {
-		printf("can not open file\n");
+		syslog(LOG_DEBUG, "can not open file\n");
 	}
 
 	data_global_confs = global_confs;
@@ -68,12 +68,12 @@ const data_plane_media_sdp_t data_plane_add_sender(sdp_process_type_t sdp_type, 
 
 		media_sdp.is_suspend = SUSPEND_OFF;
 
-		printf("[%s +%d] add [f] key [%llu] src [%s:%d] \n",
+		syslog(LOG_DEBUG, "[%s +%d] add [f] key [%llu] src [%s:%d] \n",
 				__FILE__, __LINE__,
 				key,
 				inet_ntoa(*(struct in_addr *)&media_sdp.s_addr), media_sdp.s_port);
 
-		printf("[%s +%d] add [f] key [%llu] dst [%s:%d]\n",
+		syslog(LOG_DEBUG, "[%s +%d] add [f] key [%llu] dst [%s:%d]\n",
 				__FILE__, __LINE__,
 				key,
 				inet_ntoa(*(struct in_addr *)&media_sdp.d_addr), media_sdp.d_port);
@@ -101,12 +101,12 @@ const data_plane_media_sdp_t data_plane_add_sender(sdp_process_type_t sdp_type, 
 		media_sdp.d_addr = d_addr;
 		media_sdp.d_port = d_port;
 		media_sdp.key    = key;
-		printf("[%s +%d] add [c] key [%llu] src [%s:%d] \n",
+		syslog(LOG_DEBUG, "[%s +%d] add [c] key [%llu] src [%s:%d] \n",
 				__FILE__, __LINE__,
 				key,
 				inet_ntoa(*(struct in_addr *)&media_sdp.s_addr), media_sdp.s_port);
 
-		printf("[%s +%d] add [c] key [%llu] dst [%s:%d]\n",
+		syslog(LOG_DEBUG, "[%s +%d] add [c] key [%llu] dst [%s:%d]\n",
 				__FILE__, __LINE__,
 				key,
 				inet_ntoa(*(struct in_addr *)&media_sdp.d_addr), media_sdp.d_port);
@@ -124,7 +124,7 @@ int data_plane_del_sender(sdp_process_type_t sdp_type, const data_plane_media_sd
 
 	pthread_spin_lock(&media_map_lock);
 
-	printf("[%s +%d] del key [%llu]\n", __FILE__, __LINE__, media_sdp.key);
+	syslog(LOG_DEBUG, "[%s +%d] del key [%llu]\n", __FILE__, __LINE__, media_sdp.key);
 
 	if (sdp_type == SDP_F) {
 
@@ -145,7 +145,7 @@ int data_plane_suspend(sdp_process_type_t sdp_type, const data_plane_media_sdp_t
 
 	pthread_spin_lock(&media_map_lock);
 
-	printf("[%s +%d] suspend key [%llu]\n", __FILE__, __LINE__, media_sdp.key);
+	syslog(LOG_DEBUG, "[%s +%d] suspend key [%llu]\n", __FILE__, __LINE__, media_sdp.key);
 
 	if (sdp_type == SDP_F) {
 		if (data_plane_f_map.end() != data_plane_f_map.find(media_sdp.key)) {
@@ -175,7 +175,7 @@ static void send_hint_sound(data_plane_media_sdp_t *sdp) {
 		gettimeofday(&time_now, NULL);
 		if ((time_now.tv_sec * 1000000 + time_now.tv_usec) >= (20000 + (time_start.tv_sec * 1000000 + time_start.tv_usec))) {
 			if (i * 160 <= media_file_len) {
-				printf("media Index %p \n", media_index + 160 * i);
+				syslog(LOG_DEBUG, "media Index %p \n", media_index + 160 * i);
 				rtp_process_send(sdp->fd, &(sdp->rtp_process_context), media_index + 160 * i, 160);
 			} else {
 				return;
@@ -195,10 +195,10 @@ static void *data_plane_send_hint_run_thread(void *arg) {
 		if (data_plane_f_map.size() != 0) {
 			if (data_plane_c_map.size() == 0) {
 				map<int64_t, data_plane_media_sdp_t>::iterator it = data_plane_f_map.begin();
-				printf("send hint sound to f \n");
+				syslog(LOG_DEBUG, "send hint sound to f \n");
 				while (it != data_plane_f_map.end()) {
 					pthread_spin_unlock(&media_map_lock);
-					printf("send hint sound to f src ip [%s] port [%d] dst ip [%s] port [%d]\n",
+					syslog(LOG_DEBUG, "send hint sound to f src ip [%s] port [%d] dst ip [%s] port [%d]\n",
 							inet_ntoa(*(struct in_addr *)&(it->second).s_addr), (it->second).s_port,
 							inet_ntoa(*(struct in_addr *)&(it->second).d_addr), (it->second).d_port);
 					send_hint_sound(&(it->second));
@@ -210,15 +210,15 @@ static void *data_plane_send_hint_run_thread(void *arg) {
 
 		if (data_plane_c_map.size() != 0) {
 			if (data_plane_f_map.size() == 0) {
-				printf("data plane f size %d\n", data_plane_f_map.size());
+				syslog(LOG_DEBUG, "data plane f size %d\n", data_plane_f_map.size());
 				map<int64_t, data_plane_media_sdp_t>::iterator it = data_plane_c_map.begin();
 				while (it != data_plane_c_map.end()) {
 					pthread_spin_unlock(&media_map_lock);
-					printf("send hint sound to c src ip [%s] port [%d] dst ip [%s] port [%d]\n",
+					syslog(LOG_DEBUG, "send hint sound to c src ip [%s] port [%d] dst ip [%s] port [%d]\n",
 							inet_ntoa(*(struct in_addr *)&(it->second).s_addr), (it->second).s_port,
 							inet_ntoa(*(struct in_addr *)&(it->second).d_addr), (it->second).d_port);
 					send_hint_sound(&(it->second));
-					printf("end send sound to c\n");
+					syslog(LOG_DEBUG, "end send sound to c\n");
 					pthread_spin_lock(&media_map_lock);
 					++it;
 				}
@@ -246,7 +246,7 @@ static void *data_plane_switch_data_run_thread(void *arg) {
 
 					if (len > 0) {
 
-						printf("data plane recv data  src ip [%s] port [%d] dst ip [%s] port [%d]\n",
+						syslog(LOG_DEBUG, "data plane recv data  src ip [%s] port [%d] dst ip [%s] port [%d]\n",
 									inet_ntoa(*(struct in_addr *)&(it->second).s_addr), (it->second).s_port,
 									inet_ntoa(*(struct in_addr *)&(it->second).d_addr), (it->second).d_port);
 
@@ -257,7 +257,7 @@ static void *data_plane_switch_data_run_thread(void *arg) {
 
 						while (it_c != data_plane_c_map.end()) {
 
-							printf("send sound to c src ip [%s] port [%d] dst ip [%s] port [%d]\n",
+							syslog(LOG_DEBUG, "send sound to c src ip [%s] port [%d] dst ip [%s] port [%d]\n",
 									inet_ntoa(*(struct in_addr *)&(it_c->second).s_addr), (it_c->second).s_port,
 									inet_ntoa(*(struct in_addr *)&(it_c->second).d_addr), (it_c->second).d_port);
 
@@ -282,13 +282,13 @@ int data_plane_run() {
 	pthread_t tid;
 	int err = pthread_create(&tid, NULL, &data_plane_send_hint_run_thread, NULL);
 	if (err != 0) {
-		printf("\ncan't create thread :[%s]", strerror(err));
+		syslog(LOG_DEBUG, "\ncan't create thread :[%s]", strerror(err));
 	}
 
 	pthread_t tid2;
 	int err2 = pthread_create(&tid2, NULL, &data_plane_switch_data_run_thread, NULL);
 	if (err2 != 0) {
-		printf("\ncan't create thread :[%s]", strerror(err2));
+		syslog(LOG_DEBUG, "\ncan't create thread :[%s]", strerror(err2));
 	}
 }
 
